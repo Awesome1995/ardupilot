@@ -18,8 +18,8 @@
  *  ArduCopter Version 3.0
  *  Creator:        Jason Short
  *  Lead Developer: Randy Mackay
- *  Lead Tester:    Marco Robustini 
- *  Based on code and ideas from the Arducopter team: Leonard Hall, Andrew Tridgell, Robert Lefebvre, Pat Hickey, Michael Oborne, Jani Hirvinen, 
+ *  Lead Tester:    Marco Robustini
+ *  Based on code and ideas from the Arducopter team: Leonard Hall, Andrew Tridgell, Robert Lefebvre, Pat Hickey, Michael Oborne, Jani Hirvinen,
                                                       Olivier Adler, Kevin Hester, Arthur Benemann, Jonathan Challinger, John Arne Birkeland,
                                                       Jean-Louis Naudin, Mike Smith, and more
  *  Thanks to:	Chris Anderson, Jordi Munoz, Jason Short, Doug Weibel, Jose Julio
@@ -91,12 +91,17 @@
   133  = 3hz
   400  = 1hz
   4000 = 0.1hz
-  
+
  */
 const AP_Scheduler::Task Copter::scheduler_tasks[] PROGMEM = {
     { SCHED_TASK(rc_loop),               4,    130 },   // 0
     { SCHED_TASK(throttle_loop),         8,     75 },   // 1
     { SCHED_TASK(update_GPS),            8,    200 },   // 2
+
+#if IRLOCK == ENABLED
+    { SCHED_TASK(update_irlock), 8, 20 },
+#endif
+
 #if OPTFLOW == ENABLED
     { SCHED_TASK(update_optical_flow),   2,    160 },   // 3
 #endif
@@ -153,7 +158,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] PROGMEM = {
 };
 
 
-void Copter::setup() 
+void Copter::setup()
 {
     cliSerial = hal.console;
 
@@ -250,7 +255,7 @@ void Copter::fast_loop()
 
     // run low level rate controllers that only require IMU data
     attitude_control.rate_controller_run();
-    
+
 #if FRAME_CONFIG == HELI_FRAME
     update_heli_control_dynamics();
 #endif //HELI_FRAME
@@ -621,4 +626,3 @@ void loop(void)
 }
 
 AP_HAL_MAIN();
-

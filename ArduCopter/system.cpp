@@ -122,7 +122,7 @@ void Copter::init_ardupilot()
 
     // initialise battery monitor
     battery.init();
-    
+
     rssi_analog_source      = hal.analogin->channel(g.rssi_pin);
 
     barometer.init();
@@ -196,6 +196,9 @@ void Copter::init_ardupilot()
 
     // init the optical flow sensor
     init_optflow();
+
+    // initialize the irlock sensor
+   	init_irlock();
 
 #if MOUNT == ENABLED
     // initialise camera mount
@@ -364,7 +367,7 @@ void Copter::update_auto_armed()
         }
     }else{
         // arm checks
-        
+
 #if FRAME_CONFIG == HELI_FRAME
         // for tradheli if motors are armed and throttle is above zero and the motor is started, auto_armed should be true
         if(motors.armed() && !ap.throttle_zero && motors.rotor_runup_complete()) {

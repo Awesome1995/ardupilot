@@ -71,6 +71,7 @@
 #include <AP_Motors.h>          // AP Motors library
 #include <AP_RangeFinder.h>     // Range finder library
 #include <AP_OpticalFlow.h>     // Optical Flow library
+#include <AP_IRLock.h>	        // IR-Lock Sensor library
 #include <Filter.h>             // Filter library
 #include <AP_Buffer.h>          // APM FIFO Buffer
 #include <AP_Relay.h>           // APM relay
@@ -197,6 +198,19 @@ private:
 
     // scale factor applied to velocity controller gain to prevent optical flow noise causing excessive angle demand noise
     float ekfNavVelGainScaler;
+
+////////////////////////////////////////////////////////////////////////////////
+// IRLOCK SENSOR
+////////////////////////////////////////////////////////////////////////////////
+#if IRLOCK == ENABLED
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+AP_IRLock_PX4 irlock(ahrs);
+#elif CONFIG_HAL_BOARD == HAL_BOARD_SITL
+AP_IRLock_SITL irlock{ahrs};
+#else
+#error Unrecognized IRLOCK setting
+#endif
+#endif
 
     // GCS selection
     AP_SerialManager serial_manager;
@@ -372,6 +386,16 @@ private:
     float baro_climbrate;        // barometer climbrate in cm/s
     LowPassFilterVector3f land_accel_ef_filter; // accelerations for land detector test
 
+////////////////////////////////////////////////////////////////////////////////
+// Irlock
+////////////////////////////////////////////////////////////////////////////////
+// holds irlock pixy data: signature, center_x, center_y, width, height
+irlock_block IRLOCK_FRAME[IRLOCK_MAX_BLOCKS_PER_FRAME];
+unsigned int irlock_i = 0; // the new blob iterater
+bool irlock_blob_detected; // true if new blob detected
+
+////////////////////////////////////////////////////////////////////////////////
+
     // 3D Location vectors
     // Current location of the copter (altitude is relative to home)
     struct Location current_loc;
@@ -527,6 +551,8 @@ private:
     void three_hz_loop();
     void one_hz_loop();
     void update_GPS(void);
+    void init_irlock(void);
+    void update_irlock(void);
     void init_simple_bearing();
     void update_simple_mode(void);
     void update_super_simple_bearing(bool force_update);

@@ -286,7 +286,21 @@ void Copter::rtl_descent_run()
     wp_nav.set_pilot_desired_acceleration(roll_control, pitch_control);
 
     // run loiter controller
-    wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+    // wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+    if (irlock_blob_detected == true)
+    {
+      float irlock_x_pos = (float) irlock.irlock_center_x_to_pos(IRLOCK_FRAME[0].center_x, current_loc.alt);
+      float irlock_y_pos = (float) irlock.irlock_center_y_to_pos(IRLOCK_FRAME[0].center_y, current_loc.alt);
+      float irlock_error_lat = irlock.irlock_xy_pos_to_lat((float)irlock_x_pos,(float)irlock_y_pos);
+      float irlock_error_lon = irlock.irlock_xy_pos_to_lon((float)irlock_x_pos,(float)irlock_y_pos);
+      // set target to current position
+      wp_nav.update_irlock_loiter(irlock_error_lat, irlock_error_lon,
+            ekfGndSpdLimit, ekfNavVelGainScaler);
+    }
+    else
+    {
+      wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+    }
 
     // call z-axis position controller
     pos_control.set_alt_target_with_slew(pv_alt_above_origin(g.rtl_alt_final), G_Dt);
@@ -368,7 +382,21 @@ void Copter::rtl_land_run()
     wp_nav.set_pilot_desired_acceleration(roll_control, pitch_control);
 
     // run loiter controller
-    wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+    // wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+    if (irlock_blob_detected == true)
+    {
+        float irlock_x_pos = (float) irlock.irlock_center_x_to_pos(IRLOCK_FRAME[0].center_x, current_loc.alt);
+        float irlock_y_pos = (float) irlock.irlock_center_y_to_pos(IRLOCK_FRAME[0].center_y, current_loc.alt);
+        float irlock_error_lat = irlock.irlock_xy_pos_to_lat((float)irlock_x_pos,(float)irlock_y_pos);
+        float irlock_error_lon = irlock.irlock_xy_pos_to_lon((float)irlock_x_pos,(float)irlock_y_pos);
+        // set target to current position
+        wp_nav.update_irlock_loiter(irlock_error_lat, irlock_error_lon,
+                ekfGndSpdLimit, ekfNavVelGainScaler);
+    }
+    else
+    {
+      wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+    }
 
     // call z-axis position controller
     float cmb_rate = get_land_descent_speed();
@@ -402,4 +430,3 @@ float Copter::get_RTL_alt()
 
     return rtl_alt;
 }
-

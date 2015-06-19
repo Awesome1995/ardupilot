@@ -7,8 +7,9 @@ MODULES		+= drivers/lsm303d
 MODULES		+= drivers/l3gd20
 MODULES		+= drivers/boards/px4fmu-v2
 MODULES		+= drivers/pwm_input
+MODULES 	+= drivers/irlock
 
-ifneq ($(wildcard $(SKETCHBOOK)/../uavcan),)  
+ifneq ($(wildcard $(SKETCHBOOK)/../uavcan),)
 MODULES         += modules/uavcan
 MODULES         += lib/mathlib
 #LIBRARIES       += lib/mathlib/CMSIS

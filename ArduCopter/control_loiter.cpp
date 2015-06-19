@@ -89,8 +89,22 @@ void Copter::loiter_run()
         attitude_control.set_throttle_out_unstabilized(get_throttle_pre_takeoff(channel_throttle->control_in),true,g.throttle_filt);
         pos_control.relax_alt_hold_controllers(get_throttle_pre_takeoff(channel_throttle->control_in)-throttle_average);
     }else{
-        // run loiter controller
-        wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+        if (irlock_blob_detected == true)
+        {
+          // run loiter controller
+          //        wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+          float irlock_x_pos = (float) irlock.irlock_center_x_to_pos(IRLOCK_FRAME[0].center_x, current_loc.alt);
+          float irlock_y_pos = (float) irlock.irlock_center_y_to_pos(IRLOCK_FRAME[0].center_y, current_loc.alt);
+          float irlock_error_lat = irlock.irlock_xy_pos_to_lat((float)irlock_x_pos,(float)irlock_y_pos);
+          float irlock_error_lon = irlock.irlock_xy_pos_to_lon((float)irlock_x_pos,(float)irlock_y_pos);
+          // set target to current position
+          wp_nav.update_irlock_loiter(irlock_error_lat, irlock_error_lon, ekfGndSpdLimit, ekfNavVelGainScaler);
+        }
+        else
+        {
+          // run loiter controller
+          wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+        }
 
         // call attitude controller
         attitude_control.angle_ef_roll_pitch_rate_ef_yaw(wp_nav.get_roll(), wp_nav.get_pitch(), target_yaw_rate);
