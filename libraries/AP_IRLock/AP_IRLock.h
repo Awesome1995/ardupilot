@@ -10,3 +10,5 @@
 
 #include "IRLock.h"
 #include "AP_IRLock_PX4.h"
+
+#include "AP_IRLock_SITL.h"

@@ -5,15 +5,9 @@
 //
 
 #include <AP_Common/AP_Common.h>
-#include <AP_Progmem/AP_Progmem.h>
 #include <AP_HAL/AP_HAL.h>
-#include <AP_HAL_Linux/AP_HAL_Linux.h>
-#include <AP_HAL_Empty/AP_HAL_Empty.h>
-#include <AP_Math/AP_Math.h>
-#include <AP_Param/AP_Param.h>
-#include <StorageManager/StorageManager.h>
 
-const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 void setup(void)
 {
@@ -22,7 +16,7 @@ void setup(void)
 
 static struct {
     const char *name;
-    enum AP_HAL::SPIDevice dev;
+    enum AP_HAL::SPIDeviceType dev;
     uint8_t whoami_reg;
 } whoami_list[] = {
     { "MS5611",     AP_HAL::SPIDevice_MS5611,     0x00 | 0x80 },

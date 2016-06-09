@@ -1,14 +1,15 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-#ifndef __AC_PRECLAND_IRLOCK_H__
-#define __AC_PRECLAND_IRLOCK_H__
+#pragma once
 
 #include <AP_Common/AP_Common.h>
 #include <AP_Math/AP_Math.h>
 #include <AC_PrecLand/AC_PrecLand_Backend.h>
 #include <AP_IRLock/AP_IRLock.h>
 
+#include <AP_IRLock/AP_IRLock_SITL.h>
+
 // this only builds for PX4 so far
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN || CONFIG_HAL_BOARD == HAL_BOARD_SITL
 
 /*
  * AC_PrecLand_IRLock - implements precision landing using target vectors provided
@@ -28,6 +29,8 @@ public:
     // update - give chance to driver to get updates from sensor
     //  returns true if new data available
     bool update();
+    // IRLock is hard-mounted to the frame of the vehicle, so it will always be in body-frame
+    MAV_FRAME get_frame_of_reference() { return MAV_FRAME_BODY_NED; }
 
     // get_angle_to_target - returns body frame angles (in radians) to target
     //  returns true if angles are available, false if not (i.e. no target)
@@ -39,8 +42,11 @@ public:
     void handle_msg(mavlink_message_t* msg) { /* do nothing */ }
 
 private:
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    AP_IRLock_SITL irlock;
+#else
     AP_IRLock_PX4 irlock;
+#endif
 
 };
 #endif
-#endif	// __AC_PRECLAND_IRLOCK_H__
