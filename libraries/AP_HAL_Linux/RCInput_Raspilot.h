@@ -1,14 +1,12 @@
-
-#ifndef __AP_HAL_LINUX_RCINPUT_RASPILOT_H__
-#define __AP_HAL_LINUX_RCINPUT_RASPILOT_H__
+#pragma once
 
 #include "AP_HAL_Linux.h"
 #include "RCInput.h"
 
-class Linux::LinuxRCInput_Raspilot : public Linux::LinuxRCInput
+class Linux::RCInput_Raspilot : public Linux::RCInput
 {
 public:
-    void init(void*);
+    void init();
     
 private:
     uint32_t _last_timer;
@@ -18,5 +16,3 @@ private:
     
     void _poll_data(void);
 };
-
-#endif // __AP_HAL_LINUX_RCINPUT_RASPILOT_H__

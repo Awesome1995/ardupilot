@@ -96,7 +96,6 @@ bool AP_Compass_PX4::init(void)
         _count[i] = 0;
         _sum[i].zero();
 
-        set_milligauss_ratio(_instance[i], 1.0f);
     }
 
     // give the driver a chance to run, and gather one sample
@@ -148,9 +147,6 @@ void AP_Compass_PX4::accumulate(void)
 
             // correct raw_field for known errors
             correct_field(raw_field, frontend_instance);
-
-            // publish raw_field (corrected point sample) for EKF use
-            publish_unfiltered_field(raw_field, time_us, frontend_instance);
 
             // accumulate into averaging filter
             _sum[i] += raw_field;

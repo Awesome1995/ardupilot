@@ -8,10 +8,7 @@
 // GNU General Public License for more details.
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-
-#ifndef __AP_HAL_LINUX_RCINPUT_AIOPRU_H__
-#define __AP_HAL_LINUX_RCINPUT_AIOPRU_H__
+#pragma once
 
 /*
   This class implements RCInput on the BeagleBoneBlack with a PRU
@@ -24,10 +21,10 @@
 // we use 300 ring buffer entries to guarantee that a full 25 byte
 // frame of 12 bits per byte
 
-class Linux::LinuxRCInput_AioPRU : public Linux::LinuxRCInput 
+class Linux::RCInput_AioPRU : public Linux::RCInput
 {
 public:
-    void init(void*);
+    void init();
     void _timer_tick(void);
 
  private:
@@ -44,5 +41,3 @@ public:
     };
     volatile struct ring_buffer *ring_buffer;
 };
-
-#endif // __AP_HAL_LINUX_RCINPUT_AIOPRU_H__

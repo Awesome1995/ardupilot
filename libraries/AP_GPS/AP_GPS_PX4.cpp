@@ -28,7 +28,7 @@
 
 #include <uORB/uORB.h>
 
-#include <math.h>
+#include <cmath>
 
 extern const AP_HAL::HAL& hal;
 
@@ -52,7 +52,7 @@ AP_GPS_PX4::read(void)
 
     if (updated) {
         if (OK == orb_copy(ORB_ID(vehicle_gps_position), _gps_sub, &_gps_pos)) {
-            state.last_gps_time_ms = hal.scheduler->millis();
+            state.last_gps_time_ms = AP_HAL::millis();
             state.status  = (AP_GPS::GPS_Status) (_gps_pos.fix_type | AP_GPS::NO_FIX);
             state.num_sats = _gps_pos.satellites_used;
             state.hdop = uint16_t(_gps_pos.eph*100.0f + .5f);
@@ -63,7 +63,7 @@ AP_GPS_PX4::read(void)
                 state.location.alt = _gps_pos.alt/10;
 
                 state.ground_speed = _gps_pos.vel_m_s;
-                state.ground_course_cd = wrap_360_cd(degrees(_gps_pos.cog_rad)*100);
+                state.ground_course = wrap_360(degrees(_gps_pos.cog_rad));
                 state.hdop = _gps_pos.eph*100;
 
                 // convert epoch timestamp back to gps epoch - evil hack until we get the genuine
@@ -75,7 +75,7 @@ AP_GPS_PX4::read(void)
 
                 if (_gps_pos.time_utc_usec == 0) {
                   // This is a work-around for https://github.com/PX4/Firmware/issues/1474
-                  // reject position reports with invalid time, as APM adjusts it's clock after the first lock has been aquired
+                  // reject position reports with invalid time, as APM adjusts it's clock after the first lock has been acquired
                   state.status = AP_GPS::NO_FIX;
                 }
             }

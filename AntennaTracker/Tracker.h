@@ -1,12 +1,9 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#define THISFIRMWARE "AntennaTracker V0.7.3"
-#define FIRMWARE_VERSION 0,7,3,FIRMWARE_VERSION_TYPE_DEV
-
 /*
    Lead developers: Matthew Ridley and Andrew Tridgell
- 
-   Please contribute your ideas! See http://dev.ardupilot.com for details
+
+   Please contribute your ideas! See http://dev.ardupilot.org for details
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,17 +18,17 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
 
 ////////////////////////////////////////////////////////////////////////////////
 // Header includes
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <math.h>
+#include <cmath>
 #include <stdarg.h>
 #include <stdio.h>
 
 #include <AP_Common/AP_Common.h>
-#include <AP_Progmem/AP_Progmem.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Param/AP_Param.h>
 #include <StorageManager/StorageManager.h>
@@ -40,18 +37,16 @@
 #include <AP_Compass/AP_Compass.h>     // ArduPilot Mega Magnetometer Library
 #include <AP_Math/AP_Math.h>        // ArduPilot Mega Vector/Matrix math Library
 #include <AP_ADC/AP_ADC.h>         // ArduPilot Mega Analog to Digital Converter Library
-#include <AP_ADC_AnalogSource/AP_ADC_AnalogSource.h>
 #include <AP_InertialSensor/AP_InertialSensor.h> // Inertial Sensor Library
+#include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 #include <AP_AHRS/AP_AHRS.h>         // ArduPilot Mega DCM Library
 #include <Filter/Filter.h>                     // Filter library
 #include <AP_Buffer/AP_Buffer.h>      // APM FIFO Buffer
-#include <AP_HAL_AVR/memcheck.h>
 
 #include <GCS_MAVLink/GCS_MAVLink.h>    // MAVLink GCS definitions
 #include <AP_SerialManager/AP_SerialManager.h>   // Serial manager library
 #include <AP_Declination/AP_Declination.h> // ArduPilot Mega Declination Helper Library
 #include <DataFlash/DataFlash.h>
-#include <SITL/SITL.h>
 #include <PID/PID.h>
 #include <AP_Scheduler/AP_Scheduler.h>       // main loop scheduler
 #include <AP_NavEKF/AP_NavEKF.h>
@@ -76,25 +71,22 @@
 #include "Parameters.h"
 #include <GCS_MAVLink/GCS.h>
 
-#include <AP_HAL_AVR/AP_HAL_AVR.h>
-#include <AP_HAL_SITL/AP_HAL_SITL.h>
-#include <AP_HAL_PX4/AP_HAL_PX4.h>
-#include <AP_HAL_FLYMAPLE/AP_HAL_FLYMAPLE.h>
-#include <AP_HAL_Linux/AP_HAL_Linux.h>
-#include <AP_HAL_Empty/AP_HAL_Empty.h>
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+#include <SITL/SITL.h>
+#endif
 
-class Tracker {
+class Tracker : public AP_HAL::HAL::Callbacks {
 public:
     friend class GCS_MAVLINK;
     friend class Parameters;
 
     Tracker(void);
-    void setup();
-    void loop();
+
+    // HAL::Callbacks implementation.
+    void setup() override;
+    void loop() override;
 
 private:
-    const AP_InertialSensor::Sample_rate ins_sample_rate = AP_InertialSensor::RATE_50HZ;
-
     Parameters g;
 
     // main loop scheduler
@@ -106,6 +98,11 @@ private:
     uint32_t start_time_ms = 0;
 
     bool usb_connected = false;
+
+    // has a log download started?
+    bool in_log_download = false;
+    bool logging_started = false;
+    DataFlash_Class DataFlash;
 
     AP_GPS gps;
 
@@ -127,7 +124,7 @@ private:
 #endif
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    SITL sitl;
+    SITL::SITL sitl;
 #endif
     
     /**
@@ -162,14 +159,15 @@ private:
         float bearing;                  // bearing to vehicle in centi-degrees
         float distance;                 // distance to vehicle in meters
         float pitch;                    // pitch to vehicle in degrees (positive means vehicle is above tracker, negative means below)
-        float altitude_difference;      // altitude difference between tracker and vehicle in meters.  positive value means vehicle is above tracker
+        float alt_difference_baro;      // altitude difference between tracker and vehicle in meters according to the barometer.  positive value means vehicle is above tracker
+        float alt_difference_gps;       // altitude difference between tracker and vehicle in meters according to the gps.  positive value means vehicle is above tracker
         float altitude_offset;          // offset in meters which is added to tracker altitude to align altitude measurements with vehicle's barometer
         bool manual_control_yaw         : 1;// true if tracker yaw is under manual control
         bool manual_control_pitch       : 1;// true if tracker pitch is manually controlled
         bool need_altitude_calibration  : 1;// true if tracker altitude has not been determined (true after startup)
         bool scan_reverse_pitch         : 1;// controls direction of pitch movement in SCAN mode
         bool scan_reverse_yaw           : 1;// controls direction of yaw movement in SCAN mode
-    } nav_status = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false, true, false, false};
+    } nav_status = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false, true, false, false};
 
     // Servo state
     struct {
@@ -187,24 +185,29 @@ private:
     int8_t slew_dir = 0;
     uint32_t slew_start_ms = 0;
 
+    // use this to prevent recursion during sensor init
+    bool in_mavlink_delay = false;
+
     static const AP_Scheduler::Task scheduler_tasks[];
     static const AP_Param::Info var_info[];
+    static const struct LogStructure log_structure[];
 
+    void dataflash_periodic(void);
     void one_second_loop();
+    void ten_hz_logging_loop();
     void send_heartbeat(mavlink_channel_t chan);
     void send_attitude(mavlink_channel_t chan);
     void send_location(mavlink_channel_t chan);
     void send_radio_out(mavlink_channel_t chan);
     void send_hwstatus(mavlink_channel_t chan);
     void send_waypoint_request(mavlink_channel_t chan);
-    void send_statustext(mavlink_channel_t chan);
     void send_nav_controller_output(mavlink_channel_t chan);
     void send_simstate(mavlink_channel_t chan);
     void mavlink_check_target(const mavlink_message_t* msg);
     void gcs_send_message(enum ap_message id);
     void gcs_data_stream_send(void);
     void gcs_update(void);
-    void gcs_send_text_P(MAV_SEVERITY severity, const prog_char_t *str);
+    void gcs_send_text(MAV_SEVERITY severity, const char *str);
     void gcs_retry_deferred(void);
     void load_parameters(void);
     void update_auto(void);
@@ -212,11 +215,12 @@ private:
     void update_scan(void);
     bool servo_test_set_servo(uint8_t servo_num, uint16_t pwm);
     void read_radio();
-    void init_barometer(void);
+    void init_barometer(bool full_calibration);
     void update_barometer(void);
     void update_ahrs();
     void update_compass(void);
     void compass_accumulate(void);
+    void accel_cal_update(void);
     void barometer_accumulate(void);
     void update_GPS(void);
     void init_servos();
@@ -247,9 +251,16 @@ private:
     void tracking_update_pressure(const mavlink_scaled_pressure_t &msg);
     void tracking_manual_control(const mavlink_manual_control_t &msg);
     void update_armed_disarmed();
-    void gcs_send_text_fmt(const prog_char_t *fmt, ...);
+    void gcs_send_text_fmt(MAV_SEVERITY severity, const char *fmt, ...);
     void init_capabilities(void);
     void compass_cal_update();
+    void Log_Write_Attitude();
+    void Log_Write_Baro(void);
+    void Log_Write_Vehicle_Baro(float pressure, float altitude);
+    void Log_Write_Vehicle_Startup_Messages();
+    void start_logging();
+    void log_init(void);
+    bool should_log(uint32_t mask);
 
 public:
     void mavlink_snoop(const mavlink_message_t* msg);

@@ -9,7 +9,7 @@
 void Tracker::update_vehicle_pos_estimate()
 {
     // calculate time since last actual position update
-    float dt = (hal.scheduler->micros() - vehicle.last_update_us) * 1.0e-6f;
+    float dt = (AP_HAL::micros() - vehicle.last_update_us) * 1.0e-6f;
 
     // if less than 5 seconds since last position update estimate the position
     if (dt < TRACKING_TIMEOUT_SEC) {
@@ -57,10 +57,17 @@ void Tracker::update_bearing_and_distance()
     // calculate distance to vehicle
     nav_status.distance = get_distance(current_loc, vehicle.location_estimate);
 
+    // calculate altitude difference to vehicle using gps
+    nav_status.alt_difference_gps = (vehicle.location.alt - current_loc.alt) / 100.0f;
+
     // calculate pitch to vehicle
     // To-Do: remove need for check of control_mode
     if (control_mode != SCAN && !nav_status.manual_control_pitch) {
-        nav_status.pitch    = degrees(atan2f(nav_status.altitude_difference, nav_status.distance));
+    	if (g.alt_source == 0) {
+    	    nav_status.pitch = degrees(atan2f(nav_status.alt_difference_baro, nav_status.distance));
+    	} else {
+            nav_status.pitch = degrees(atan2f(nav_status.alt_difference_gps, nav_status.distance));
+    	}
     }
 }
 
@@ -80,7 +87,7 @@ void Tracker::update_tracking(void)
 
     // do not perform any servo updates until startup delay has passed
     if (g.startup_delay > 0 &&
-        hal.scheduler->millis() - start_time_ms < g.startup_delay*1000) {
+        AP_HAL::millis() - start_time_ms < g.startup_delay*1000) {
         return;
     }
 
@@ -118,9 +125,14 @@ void Tracker::tracking_update_position(const mavlink_global_position_int_t &msg)
     vehicle.location.lng = msg.lon;
     vehicle.location.alt = msg.alt/10;
     vehicle.heading      = msg.hdg * 0.01f;
-    vehicle.ground_speed = pythagorous2(msg.vx, msg.vy) * 0.01f;
-    vehicle.last_update_us = hal.scheduler->micros();    
-    vehicle.last_update_ms = hal.scheduler->millis();
+    vehicle.ground_speed = norm(msg.vx, msg.vy) * 0.01f;
+    vehicle.last_update_us = AP_HAL::micros();    
+    vehicle.last_update_ms = AP_HAL::millis();
+
+    // log vehicle as GPS2
+    if (should_log(MASK_LOG_GPS)) {
+        DataFlash.Log_Write_GPS(gps, 1);
+    }
 }
 
 
@@ -135,16 +147,19 @@ void Tracker::tracking_update_pressure(const mavlink_scaled_pressure_t &msg)
     // calculate altitude difference based on difference in barometric pressure
     float alt_diff = barometer.get_altitude_difference(local_pressure, aircraft_pressure);
     if (!isnan(alt_diff)) {
-        nav_status.altitude_difference = alt_diff + nav_status.altitude_offset;
+        nav_status.alt_difference_baro = alt_diff + nav_status.altitude_offset;
     }
 
     if (nav_status.need_altitude_calibration) {
         // we have done a baro calibration - zero the altitude
         // difference to the aircraft
-        nav_status.altitude_offset = -nav_status.altitude_difference;
-        nav_status.altitude_difference = 0;
+        nav_status.altitude_offset = -nav_status.alt_difference_baro;
+        nav_status.alt_difference_baro = 0;
         nav_status.need_altitude_calibration = false;
     }
+
+    // log altitude difference
+    Log_Write_Vehicle_Baro(local_pressure, alt_diff);
 }
 
 /**
@@ -165,7 +180,7 @@ void Tracker::tracking_manual_control(const mavlink_manual_control_t &msg)
  */
 void Tracker::update_armed_disarmed()
 {
-    if (vehicle.last_update_ms != 0 && (hal.scheduler->millis() - vehicle.last_update_ms) < TRACKING_TIMEOUT_MS) {
+    if (vehicle.last_update_ms != 0 && (AP_HAL::millis() - vehicle.last_update_ms) < TRACKING_TIMEOUT_MS) {
         AP_Notify::flags.armed = true;
     } else {
         AP_Notify::flags.armed = false;
