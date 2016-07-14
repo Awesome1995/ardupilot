@@ -1,6 +1,4 @@
-
-#ifndef __AP_HAL_LINUX_RCINPUT_ZYNQ_H__
-#define __AP_HAL_LINUX_RCINPUT_ZYNQ_H__
+#pragma once
 
 /*
   This class implements RCInput on the ZYNQ / ZyboPilot platform with custom
@@ -12,10 +10,10 @@
 // FIXME A puppie dies when you hard code an address
 #define RCIN_ZYNQ_PULSE_INPUT_BASE  0x43c10000
 
-class Linux::LinuxRCInput_ZYNQ : public Linux::LinuxRCInput 
+class Linux::RCInput_ZYNQ : public Linux::RCInput
 {
 public:
-    void init(void*);
+    void init();
     void _timer_tick(void);
 
  private:
@@ -28,5 +26,3 @@ public:
     // time spent in the low state
     uint32_t _s0_time;
 };
-
-#endif // __AP_HAL_LINUX_RCINPUT_ZYNQ_H__

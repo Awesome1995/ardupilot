@@ -3,9 +3,7 @@
 /*
   SToRM32 mount using serial protocol backend class
  */
-
-#ifndef __AP_MOUNT_STORM32_SERIAL_H__
-#define __AP_MOUNT_STORM32_SERIAL_H__
+#pragma once
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_AHRS/AP_AHRS.h>
@@ -147,11 +145,9 @@ private:
     union PACKED SToRM32_reply {
         SToRM32_reply_data_struct data;
         SToRM32_reply_ack_struct ack;
-        uint8_t bytes[];
+        uint8_t bytes[0];
     } _buffer;
 
     // keep the last _current_angle values
     Vector3l _current_angle;
 };
-
-#endif // __AP_MOUNT_STORM32_SERIAL_H__

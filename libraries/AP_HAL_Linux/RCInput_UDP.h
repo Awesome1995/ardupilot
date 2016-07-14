@@ -1,6 +1,4 @@
-
-#ifndef _AP_HAL_LINUX_RCINPUT_UDP_H
-#define _AP_HAL_LINUX_RCINPUT_UDP_H
+#pragma once
 
 #include "RCInput.h"
 #include <AP_HAL/utility/Socket.h>
@@ -8,11 +6,11 @@
 
 #define RCINPUT_UDP_DEF_PORT 777
 
-class Linux::LinuxRCInput_UDP : public Linux::LinuxRCInput
+class Linux::RCInput_UDP : public Linux::RCInput
 {
 public:
-    LinuxRCInput_UDP();
-    void init(void*);
+    RCInput_UDP();
+    void init();
     void _timer_tick(void);
 private:
     SocketAPM   _socket{true};
@@ -21,4 +19,3 @@ private:
     uint64_t _last_buf_ts;
     uint16_t _last_buf_seq;
 };
-#endif // _AP_HAL_LINUX_RCINPUT_UDP_H

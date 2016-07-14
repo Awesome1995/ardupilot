@@ -2,46 +2,46 @@
 
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
 
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "RCInput_Raspilot.h"
 
 #include "px4io_protocol.h"
 
-static const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+static const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 using namespace Linux;
 
-void LinuxRCInput_Raspilot::init(void*)
+void RCInput_Raspilot::init()
 {
     _spi = hal.spi->device(AP_HAL::SPIDevice_RASPIO);
     _spi_sem = _spi->get_semaphore();
 
     if (_spi_sem == NULL) {
-        hal.scheduler->panic(PSTR("PANIC: RCIutput_Raspilot did not get "
-                                  "valid SPI semaphore!"));
+        AP_HAL::panic("PANIC: RCIutput_Raspilot did not get "
+                                  "valid SPI semaphore!");
         return; // never reached
     }
 
     // start the timer process to read samples
-    hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&LinuxRCInput_Raspilot::_poll_data, void));
+    hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&RCInput_Raspilot::_poll_data, void));
 }
 
-void LinuxRCInput_Raspilot::_poll_data(void)
+void RCInput_Raspilot::_poll_data(void)
 {
     // Throttle read rate to 100hz maximum.
-    if (hal.scheduler->micros() - _last_timer < 10000) {
+    if (AP_HAL::micros() - _last_timer < 10000) {
         return;
     }
 
-    _last_timer = hal.scheduler->micros();
+    _last_timer = AP_HAL::micros();
 
     if (!_spi_sem->take_nonblocking()) {
         return;

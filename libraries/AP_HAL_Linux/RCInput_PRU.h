@@ -1,6 +1,4 @@
-
-#ifndef __AP_HAL_LINUX_RCINPUT_PRU_H__
-#define __AP_HAL_LINUX_RCINPUT_PRU_H__
+#pragma once
 
 /*
   This class implements RCInput on the BeagleBoneBlack with a PRU
@@ -13,10 +11,10 @@
 // we use 300 ring buffer entries to guarantee that a full 25 byte
 // frame of 12 bits per byte
 
-class Linux::LinuxRCInput_PRU : public Linux::LinuxRCInput 
+class Linux::RCInput_PRU : public Linux::RCInput
 {
 public:
-    void init(void*);
+    void init();
     void _timer_tick(void);
 
  private:
@@ -35,5 +33,3 @@ public:
     // time spent in the low state
     uint16_t _s0_time;
 };
-
-#endif // __AP_HAL_LINUX_RCINPUT_PRU_H__

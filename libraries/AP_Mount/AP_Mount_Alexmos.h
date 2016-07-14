@@ -3,9 +3,7 @@
 /*
   Alexmos Serial controlled mount backend class
 */
-
-#ifndef __AP_MOUNT_ALEXMOS_H__
-#define __AP_MOUNT_ALEXMOS_H__
+#pragma once
 
 #include "AP_Mount.h"
 #include <AP_HAL/AP_HAL.h>
@@ -290,7 +288,7 @@ private:
         alexmos_angles angles;
         alexmos_params params;
         alexmos_angles_speed angle_speed;
-        uint8_t bytes[];
+        uint8_t bytes[0];
     } _buffer,_current_parameters;
 
     AP_HAL::UARTDriver *_port;
@@ -319,5 +317,3 @@ private:
     // confirmed that last command was ok
     bool _last_command_confirmed : 1;
 };
-
-#endif

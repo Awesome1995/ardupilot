@@ -1,20 +1,19 @@
+#include "SPIDriver.h"
+
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/spi/spidev.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-#include "SPIDriver.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <errno.h>
-#include <sys/ioctl.h>
-#include <linux/spi/spidev.h>
 #include "GPIO.h"
-
-#define SPI_DEBUGGING 0
 
 using namespace Linux;
 
@@ -24,49 +23,76 @@ extern const AP_HAL::HAL& hal;
 #define KHZ (1000U)
 
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_PXF || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ERLEBOARD
-LinuxSPIDeviceDriver LinuxSPIDeviceManager::_device[] = {
+SPIDeviceDriver SPIDeviceManager::_device[] = {
     // different SPI tables per board subtype
-    LinuxSPIDeviceDriver(1, 0, AP_HAL::SPIDevice_LSM9DS0_AM, SPI_MODE_3, 8, BBB_P9_17,  10*MHZ,10*MHZ),
-    LinuxSPIDeviceDriver(1, 0, AP_HAL::SPIDevice_LSM9DS0_G,  SPI_MODE_3, 8, BBB_P8_9,   10*MHZ,10*MHZ),
-    LinuxSPIDeviceDriver(2, 0, AP_HAL::SPIDevice_MS5611,     SPI_MODE_3, 8, BBB_P9_42,  10*MHZ,10*MHZ),
-    LinuxSPIDeviceDriver(2, 0, AP_HAL::SPIDevice_MPU6000,    SPI_MODE_3, 8, BBB_P9_28,  500*1000, 20*MHZ),
+    SPIDeviceDriver("lsm9ds0_am", 1, 0, AP_HAL::SPIDevice_LSM9DS0_AM, SPI_MODE_3, 8, BBB_P9_17,  10*MHZ,10*MHZ),
+    SPIDeviceDriver("lsm9ds0_g",  1, 0, AP_HAL::SPIDevice_LSM9DS0_G,  SPI_MODE_3, 8, BBB_P8_9,   10*MHZ,10*MHZ),
+    SPIDeviceDriver("ms5611",     2, 0, AP_HAL::SPIDevice_MS5611,     SPI_MODE_3, 8, BBB_P9_42,  10*MHZ,10*MHZ),
+    SPIDeviceDriver("mpu6000",    2, 0, AP_HAL::SPIDevice_MPU6000,    SPI_MODE_3, 8, BBB_P9_28,  500*1000, 20*MHZ),
     /* MPU9250 is restricted to 1MHz for non-data and interrupt registers */
-    LinuxSPIDeviceDriver(2, 0, AP_HAL::SPIDevice_MPU9250,    SPI_MODE_3, 8, BBB_P9_23,  1*MHZ, 20*MHZ),
-    LinuxSPIDeviceDriver(2, 0, AP_HAL::SPIDevice_Dataflash,  SPI_MODE_3, 8, BBB_P8_12,  6*MHZ, 6*MHZ),
+    SPIDeviceDriver("mpu9250",    2, 0, AP_HAL::SPIDevice_MPU9250,    SPI_MODE_3, 8, BBB_P9_23,  1*MHZ, 20*MHZ),
+    SPIDeviceDriver("dataflash",  2, 0, AP_HAL::SPIDevice_Dataflash,  SPI_MODE_3, 8, BBB_P8_12,  6*MHZ, 6*MHZ),
 };
-#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO
-LinuxSPIDeviceDriver LinuxSPIDeviceManager::_device[] = {
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_MINLURE
+SPIDeviceDriver SPIDeviceManager::_device[] = {
+    SPIDeviceDriver("mpu6000",    0, 0, AP_HAL::SPIDevice_MPU6000,    SPI_MODE_3, 8, SPI_CS_KERNEL, 1*MHZ, 15*MHZ)
+};
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO2
+SPIDeviceDriver SPIDeviceManager::_device[] = {
     /* MPU9250 is restricted to 1MHz for non-data and interrupt registers */
-    LinuxSPIDeviceDriver(0, 1, AP_HAL::SPIDevice_MPU9250, SPI_MODE_0, 8, SPI_CS_KERNEL,  1*MHZ, 20*MHZ),
-    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_Ublox, SPI_MODE_0, 8, SPI_CS_KERNEL,  250*KHZ, 5*MHZ),
+    SPIDeviceDriver("mpu9250",    0, 1, AP_HAL::SPIDevice_MPU9250, SPI_MODE_0, 8, SPI_CS_KERNEL,  1*MHZ, 20*MHZ),
+    SPIDeviceDriver("ublox",      0, 0, AP_HAL::SPIDevice_Ublox, SPI_MODE_0, 8, SPI_CS_KERNEL,  5*MHZ, 5*MHZ),
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO2
+    SPIDeviceDriver("lsm9ds1_m",  0, 2, AP_HAL::SPIDevice_LSM9DS1_M, SPI_MODE_0, 8, SPI_CS_KERNEL,  1*MHZ, 10*MHZ),
+#endif
+};
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ERLEBRAIN2 || \
+      CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_PXFMINI
+SPIDeviceDriver SPIDeviceManager::_device[] = {
+    /* MPU9250 is restricted to 1MHz for non-data and interrupt registers */
+    SPIDeviceDriver("mpu9250",    0, 1, AP_HAL::SPIDevice_MPU9250, SPI_MODE_0, 8, SPI_CS_KERNEL,  1*MHZ, 20*MHZ),
+    SPIDeviceDriver("ms5611",     0, 0, AP_HAL::SPIDevice_MS5611,  SPI_MODE_0, 8, SPI_CS_KERNEL,  1*KHZ, 10*MHZ),
 };
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
-LinuxSPIDeviceDriver LinuxSPIDeviceManager::_device[] = {
+SPIDeviceDriver SPIDeviceManager::_device[] = {
     /* MPU9250 is restricted to 1MHz for non-data and interrupt registers */
-    LinuxSPIDeviceDriver(2, 0, AP_HAL::SPIDevice_MPU9250,    SPI_MODE_3, 8, SPI_CS_KERNEL,  1*MHZ, 20*MHZ),
-    LinuxSPIDeviceDriver(2, 1, AP_HAL::SPIDevice_MS5611,     SPI_MODE_3, 8, SPI_CS_KERNEL,  10*MHZ,10*MHZ),
+    SPIDeviceDriver("mpu9250",    2, 0, AP_HAL::SPIDevice_MPU9250,    SPI_MODE_3, 8, SPI_CS_KERNEL,  1*MHZ, 20*MHZ),
+    SPIDeviceDriver("mpu9250ext", 1, 0, AP_HAL::SPIDevice_MPU9250,    SPI_MODE_3, 8, SPI_CS_KERNEL,  1*MHZ, 20*MHZ),
+    SPIDeviceDriver("ms5611",     2, 1, AP_HAL::SPIDevice_MS5611,     SPI_MODE_3, 8, SPI_CS_KERNEL,  10*MHZ,10*MHZ),
 };
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
-LinuxSPIDeviceDriver LinuxSPIDeviceManager::_device[] = {
+SPIDeviceDriver SPIDeviceManager::_device[] = {
     /* MPU9250 is restricted to 1MHz for non-data and interrupt registers */
-    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_MPU6000, SPI_MODE_3, 8, RPI_GPIO_25,  1*MHZ, 8*MHZ),
-    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_MS5611,  SPI_MODE_3, 8, RPI_GPIO_23,  1*MHZ, 8*MHZ),
-    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_L3GD20,  SPI_MODE_3, 8, RPI_GPIO_12,  1*MHZ, 8*MHZ),
-    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_LSM303D, SPI_MODE_3, 8, RPI_GPIO_22,  1*MHZ, 8*MHZ),
-    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_Dataflash, SPI_MODE_3, 8, RPI_GPIO_5,  1*MHZ, 8*MHZ),
-    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_RASPIO, SPI_MODE_3, 8, RPI_GPIO_7,  8*MHZ, 8*MHZ),
+    SPIDeviceDriver("mpu6000",    0, 0, AP_HAL::SPIDevice_MPU6000,     SPI_MODE_3, 8, RPI_GPIO_25,  1*MHZ, 20*MHZ),
+    SPIDeviceDriver("ms5611",     0, 0, AP_HAL::SPIDevice_MS5611,      SPI_MODE_3, 8, RPI_GPIO_23,  10*MHZ, 10*MHZ),
+    SPIDeviceDriver("lsm9ds0_am", 0, 0, AP_HAL::SPIDevice_LSM9DS0_AM,  SPI_MODE_3, 8, RPI_GPIO_22,  10*MHZ, 10*MHZ),
+    SPIDeviceDriver("lsm9ds0_g",  0, 0, AP_HAL::SPIDevice_LSM9DS0_G,   SPI_MODE_3, 8, RPI_GPIO_12,  10*MHZ, 10*MHZ),
+    SPIDeviceDriver("dataflash",  0, 0, AP_HAL::SPIDevice_Dataflash,   SPI_MODE_3, 8, RPI_GPIO_5,   6*MHZ, 6*MHZ),
+    SPIDeviceDriver("raspio",     0, 0, AP_HAL::SPIDevice_RASPIO,      SPI_MODE_3, 8, RPI_GPIO_7,   10*MHZ, 10*MHZ),
+};
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BH
+SPIDeviceDriver SPIDeviceManager::_device[] = {
+    SPIDeviceDriver("mpu9250", 0, 0, AP_HAL::SPIDevice_MPU9250, SPI_MODE_0, 8, RPI_GPIO_7, 1*MHZ,   20*MHZ),
+    SPIDeviceDriver("ublox",   0, 0, AP_HAL::SPIDevice_Ublox,   SPI_MODE_0, 8, RPI_GPIO_8, 250*KHZ, 5*MHZ),
+};
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BEBOP
+SPIDeviceDriver SPIDeviceManager::_device[] = {
+    SPIDeviceDriver("bebop", 1, 0, AP_HAL::SPIDevice_Bebop, SPI_MODE_0, 8, SPI_CS_KERNEL,  320*KHZ, 320*KHZ),
 };
 #else
 // empty device table
-LinuxSPIDeviceDriver LinuxSPIDeviceManager::_device[0];
+SPIDeviceDriver SPIDeviceManager::_device[] = { };
+#define LINUX_SPI_DEVICE_NUM_DEVICES 0
 #endif
 
-#define LINUX_SPI_DEVICE_NUM_DEVICES ARRAY_SIZE(LinuxSPIDeviceManager::_device)
+#ifndef LINUX_SPI_DEVICE_NUM_DEVICES
+#define LINUX_SPI_DEVICE_NUM_DEVICES ARRAY_SIZE(SPIDeviceManager::_device)
+#endif
 
-// have a separate semaphore per bus
-LinuxSemaphore LinuxSPIDeviceManager::_semaphore[LINUX_SPI_MAX_BUSES];
+const uint8_t SPIDeviceManager::_n_device_desc = LINUX_SPI_DEVICE_NUM_DEVICES;
 
-LinuxSPIDeviceDriver::LinuxSPIDeviceDriver(uint16_t bus, uint16_t subdev, enum AP_HAL::SPIDevice type, uint8_t mode, uint8_t bitsPerWord, int16_t cs_pin, uint32_t lowspeed, uint32_t highspeed):
+SPIDeviceDriver::SPIDeviceDriver(const char *name, uint16_t bus, uint16_t subdev, enum AP_HAL::SPIDeviceType type, uint8_t mode, uint8_t bitsPerWord, int16_t cs_pin, uint32_t lowspeed, uint32_t highspeed):
+    _name(name),
     _bus(bus),
     _subdev(subdev),
     _type(type),
@@ -80,13 +106,13 @@ LinuxSPIDeviceDriver::LinuxSPIDeviceDriver(uint16_t bus, uint16_t subdev, enum A
 {
 }
 
-void LinuxSPIDeviceDriver::init()
+void SPIDeviceDriver::init()
 {
     // Init the CS
     if(_cs_pin != SPI_CS_KERNEL) {
         _cs = hal.gpio->channel(_cs_pin);
         if (_cs == NULL) {
-            hal.scheduler->panic("Unable to instantiate cs pin");
+            AP_HAL::panic("Unable to instantiate cs pin");
         }
         _cs->mode(HAL_GPIO_OUTPUT);
         _cs->write(1);       // do not hold the SPI bus initially
@@ -95,17 +121,17 @@ void LinuxSPIDeviceDriver::init()
     }
 }
 
-AP_HAL::Semaphore* LinuxSPIDeviceDriver::get_semaphore()
+AP_HAL::Semaphore *SPIDeviceDriver::get_semaphore()
 {
-    return LinuxSPIDeviceManager::get_semaphore(_bus);
+    return _fake_dev->get_semaphore();
 }
 
-bool LinuxSPIDeviceDriver::transaction(const uint8_t *tx, uint8_t *rx, uint16_t len)
+bool SPIDeviceDriver::transaction(const uint8_t *tx, uint8_t *rx, uint16_t len)
 {
-    return LinuxSPIDeviceManager::transaction(*this, tx, rx, len);
+    return SPIDeviceManager::transaction(*this, tx, rx, len);
 }
 
-void LinuxSPIDeviceDriver::set_bus_speed(enum bus_speed speed)
+void SPIDeviceDriver::set_bus_speed(enum bus_speed speed)
 {
     if (speed == SPI_SPEED_LOW) {
         _speed = _lowspeed;
@@ -114,51 +140,41 @@ void LinuxSPIDeviceDriver::set_bus_speed(enum bus_speed speed)
     }
 }
 
-void LinuxSPIDeviceDriver::cs_assert()
+void SPIDeviceDriver::cs_assert()
 {
-    LinuxSPIDeviceManager::cs_assert(_type);
+    SPIDeviceManager::cs_assert(_type);
 }
 
-void LinuxSPIDeviceDriver::cs_release()
+void SPIDeviceDriver::cs_release()
 {
-    LinuxSPIDeviceManager::cs_release(_type);
+    SPIDeviceManager::cs_release(_type);
 }
 
-uint8_t LinuxSPIDeviceDriver::transfer(uint8_t data)
+uint8_t SPIDeviceDriver::transfer(uint8_t data)
 {
     uint8_t v = 0;
     transaction(&data, &v, 1);
     return v;
 }
 
-void LinuxSPIDeviceDriver::transfer(const uint8_t *data, uint16_t len)
+void SPIDeviceDriver::transfer(const uint8_t *data, uint16_t len)
 {
     transaction(data, NULL, len);
 }
 
-void LinuxSPIDeviceManager::init(void *)
+void SPIDeviceManager::init()
 {
     for (uint8_t i=0; i<LINUX_SPI_DEVICE_NUM_DEVICES; i++) {
-        if (_device[i]._bus >= LINUX_SPI_MAX_BUSES) {
-            hal.scheduler->panic("SPIDriver: invalid bus number");
+        _device[i]._fake_dev = SPIDeviceManager::from(hal.spi)->get_device(_device[i]);
+        if (!_device[i]._fake_dev) {
+            AP_HAL::panic("SPIDriver: couldn't use spidev%u.%u for %s",
+                          _device[i]._bus, _device[i]._subdev, _device[i]._name);
         }
-        char path[255];
-        snprintf(path, sizeof(path), "/dev/spidev%u.%u",
-                 _device[i]._bus + LINUX_SPIDEV_BUS_OFFSET, _device[i]._subdev);
-        _device[i]._fd = open(path, O_RDWR);
-        if (_device[i]._fd == -1) {
-            printf("Unable to open %s - %s\n", path, strerror(errno));
-            hal.scheduler->panic("SPIDriver: unable to open SPI bus");
-        }
-#if SPI_DEBUGGING
-        printf("Opened %s\n", path);
-        fflush(stdout);
-#endif
         _device[i].init();
     }
 }
 
-void LinuxSPIDeviceManager::cs_assert(enum AP_HAL::SPIDevice type)
+void SPIDeviceManager::cs_assert(enum AP_HAL::SPIDeviceType type)
 {
     uint16_t bus = 0, i;
     for (i=0; i<LINUX_SPI_DEVICE_NUM_DEVICES; i++) {
@@ -168,7 +184,7 @@ void LinuxSPIDeviceManager::cs_assert(enum AP_HAL::SPIDevice type)
         }
     }
     if (i == LINUX_SPI_DEVICE_NUM_DEVICES) {
-        hal.scheduler->panic("Bad device type");
+        AP_HAL::panic("Bad device type");
     }
 
     // Kernel-mode CS handling
@@ -194,7 +210,7 @@ void LinuxSPIDeviceManager::cs_assert(enum AP_HAL::SPIDevice type)
     }
 }
 
-void LinuxSPIDeviceManager::cs_release(enum AP_HAL::SPIDevice type)
+void SPIDeviceManager::cs_release(enum AP_HAL::SPIDeviceType type)
 {
     uint16_t bus = 0, i;
     for (i=0; i<LINUX_SPI_DEVICE_NUM_DEVICES; i++) {
@@ -204,7 +220,7 @@ void LinuxSPIDeviceManager::cs_release(enum AP_HAL::SPIDevice type)
         }
     }
     if (i == LINUX_SPI_DEVICE_NUM_DEVICES) {
-        hal.scheduler->panic("Bad device type");
+        AP_HAL::panic("Bad device type");
     }
 
     // Kernel-mode CS handling
@@ -220,12 +236,13 @@ void LinuxSPIDeviceManager::cs_release(enum AP_HAL::SPIDevice type)
     }
 }
 
-bool LinuxSPIDeviceManager::transaction(LinuxSPIDeviceDriver &driver, const uint8_t *tx, uint8_t *rx, uint16_t len)
+bool SPIDeviceManager::transaction(SPIDeviceDriver &driver, const uint8_t *tx, uint8_t *rx, uint16_t len)
 {
     int r;
     // we set the mode before we assert the CS line so that the bus is
     // in the correct idle state before the chip is selected
-    r = ioctl(driver._fd, SPI_IOC_WR_MODE, &driver._mode);
+    int fd = driver._fake_dev->get_fd();
+    r = ioctl(fd, SPI_IOC_WR_MODE, &driver._mode);
     if (r == -1) {
         hal.console->printf("SPI: error on setting mode\n");
         return false;
@@ -247,7 +264,7 @@ bool LinuxSPIDeviceManager::transaction(LinuxSPIDeviceDriver &driver, const uint
         memset(rx, 0, len);
     }
 
-    r = ioctl(driver._fd, SPI_IOC_MESSAGE(1), &spi);
+    r = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
     cs_release(driver._type);
 
     if (r == -1) {
@@ -261,7 +278,7 @@ bool LinuxSPIDeviceManager::transaction(LinuxSPIDeviceDriver &driver, const uint
 /*
   return a SPIDeviceDriver for a particular device
  */
-AP_HAL::SPIDeviceDriver *LinuxSPIDeviceManager::device(enum AP_HAL::SPIDevice dev, uint8_t index)
+AP_HAL::SPIDeviceDriver *SPIDeviceManager::device(enum AP_HAL::SPIDeviceType dev, uint8_t index)
 {
     uint8_t count = 0;
     for (uint8_t i=0; i<LINUX_SPI_DEVICE_NUM_DEVICES; i++) {
@@ -275,13 +292,3 @@ AP_HAL::SPIDeviceDriver *LinuxSPIDeviceManager::device(enum AP_HAL::SPIDevice de
     }
     return NULL;
 }
-
-/*
-  return the bus specific semaphore
- */
-AP_HAL::Semaphore *LinuxSPIDeviceManager::get_semaphore(uint16_t bus)
-{
-    return &_semaphore[bus];
-}
-
-#endif // CONFIG_HAL_BOARD

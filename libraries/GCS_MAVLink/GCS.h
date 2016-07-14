@@ -3,9 +3,7 @@
 /// @file	GCS.h
 /// @brief	Interface definition for the various Ground Control System
 // protocols.
-
-#ifndef __GCS_H
-#define __GCS_H
+#pragma once
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Common/AP_Common.h>
@@ -17,11 +15,18 @@
 #include "MAVLink_routing.h"
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_Mount/AP_Mount.h>
+#include <AP_HAL/utility/RingBuffer.h>
 
 // check if a message will fit in the payload space available
-#define HAVE_PAYLOAD_SPACE(chan, id) (comm_get_txspace(chan) >= MAVLINK_NUM_NON_PAYLOAD_BYTES+MAVLINK_MSG_ID_ ## id ## _LEN)
-#define CHECK_PAYLOAD_SIZE(id) if (comm_get_txspace(chan) < MAVLINK_NUM_NON_PAYLOAD_BYTES+MAVLINK_MSG_ID_ ## id ## _LEN) return false
+#define HAVE_PAYLOAD_SPACE(chan, id) (comm_get_txspace(chan) >= GCS_MAVLINK::packet_overhead_chan(chan)+MAVLINK_MSG_ID_ ## id ## _LEN)
+#define CHECK_PAYLOAD_SIZE(id) if (comm_get_txspace(chan) < packet_overhead()+MAVLINK_MSG_ID_ ## id ## _LEN) return false
 #define CHECK_PAYLOAD_SIZE2(id) if (!HAVE_PAYLOAD_SPACE(chan, id)) return false
+
+#if HAL_CPU_CLASS <= HAL_CPU_CLASS_150 || CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    #define GCS_MAVLINK_PAYLOAD_STATUS_CAPACITY          5
+#else
+    #define GCS_MAVLINK_PAYLOAD_STATUS_CAPACITY          30
+#endif
 
 //  GCS Message ID's
 /// NOTE: to ensure we never block on sending MAVLink messages
@@ -69,6 +74,7 @@ enum ap_message {
     MSG_VIBRATION,
     MSG_RPM,
     MSG_MISSION_ITEM_REACHED,
+    MSG_POSITION_TARGET_GLOBAL_INT,
     MSG_RETRY_DEFERRED // this must be last
 };
 
@@ -87,13 +93,19 @@ public:
     void        setup_uart(const AP_SerialManager& serial_manager, AP_SerialManager::SerialProtocol protocol, uint8_t instance);
     void        send_message(enum ap_message id);
     void        send_text(MAV_SEVERITY severity, const char *str);
-    void        send_text_P(MAV_SEVERITY severity, const prog_char_t *str);
     void        data_stream_send(void);
     void        queued_param_send();
     void        queued_waypoint_send();
     void        set_snoop(void (*_msg_snoop)(const mavlink_message_t* msg)) {
         msg_snoop = _msg_snoop;
     }
+
+    struct statustext_t {
+        uint8_t                 bitmask;
+        mavlink_statustext_t    msg;
+    };
+    static ObjectArray<statustext_t> _statustext_queue;
+
 
     // accessor for uart
     AP_HAL::UARTDriver *get_uart() { return _port; }
@@ -119,10 +131,6 @@ public:
 
     // see if we should send a stream now. Called at 50Hz
     bool        stream_trigger(enum streams stream_num);
-
-	// this costs us 51 bytes per instance, but means that low priority
-	// messages don't block the CPU
-    mavlink_statustext_t pending_status;
 
     // call to reset the timeout window for entering the cli
     void reset_cli_timeout();
@@ -153,31 +161,59 @@ public:
     void send_autopilot_version(uint8_t major_version, uint8_t minor_version, uint8_t patch_version, uint8_t version_type) const;
     void send_local_position(const AP_AHRS &ahrs) const;
     void send_vibration(const AP_InertialSensor &ins) const;
+    void send_home(const Location &home) const;
+    static void send_home_all(const Location &home);
+    void send_heartbeat(uint8_t type, uint8_t base_mode, uint32_t custom_mode, uint8_t system_status);
 
     // return a bitmap of active channels. Used by libraries to loop
     // over active channels to send to all active channels    
     static uint8_t active_channel_mask(void) { return mavlink_active; }
 
     /*
-      send a statustext message to all active MAVLink
-      connections. This function is static so it can be called from
-      any library
+    send a statustext message to active MAVLink connections, or a specific
+    one. This function is static so it can be called from any library.
     */
-    static void send_statustext_all(MAV_SEVERITY severity, const prog_char_t *fmt, ...);
+    static void send_statustext_all(MAV_SEVERITY severity, const char *fmt, ...);
+    static void send_statustext_chan(MAV_SEVERITY severity, uint8_t dest_chan, const char *fmt, ...);
+    static void send_statustext(MAV_SEVERITY severity, uint8_t dest_bitmask, const char *text);
+    static void service_statustext(void);
 
+    // send a PARAM_VALUE message to all active MAVLink connections.
+    static void send_parameter_value_all(const char *param_name, ap_var_type param_type, float param_value);
+    
     /*
       send a MAVLink message to all components with this vehicle's system id
       This is a no-op if no routes to components have been learned
     */
     static void send_to_components(const mavlink_message_t* msg) { routing.send_to_components(msg); }
-
+    
+    /*
+      allow forwarding of packets / heartbeats to be blocked as required by some components to reduce traffic
+    */
+    static void disable_channel_routing(mavlink_channel_t chan) { routing.no_route_mask |= (1U<<(chan-MAVLINK_COMM_0)); }
+    
     /*
       search for a component in the routing table with given mav_type and retrieve it's sysid, compid and channel
       returns if a matching component is found
      */
     static bool find_by_mavtype(uint8_t mav_type, uint8_t &sysid, uint8_t &compid, mavlink_channel_t &channel) { return routing.find_by_mavtype(mav_type, sysid, compid, channel); }
 
+    /*
+      set a dataflash pointer for logging
+     */
+    static void set_dataflash(DataFlash_Class *dataflash) {
+        dataflash_p = dataflash;
+    }
+
+    // update signing timestamp on GPS lock
+    static void update_signing_timestamp(uint64_t timestamp_usec);
+
+    // return current packet overhead for a channel
+    static uint8_t packet_overhead_chan(mavlink_channel_t chan);
+
 private:
+    float       adjust_rate_for_stream_trigger(enum streams stream_num);
+
     void        handleMessage(mavlink_message_t * msg);
 
     /// The stream we are communicating over
@@ -208,12 +244,6 @@ private:
     ///
     /// @return         The number of reportable parameters.
     ///
-    uint16_t                    _count_parameters(); ///< count reportable
-                                                     // parameters
-
-    uint16_t                    _parameter_count;   ///< cache of reportable
-                                                    // parameters
-
     mavlink_channel_t           chan;
     uint16_t                    packet_drops;
 
@@ -229,7 +259,7 @@ private:
     uint16_t        waypoint_count;
     uint32_t        waypoint_timelast_receive; // milliseconds
     uint32_t        waypoint_timelast_request; // milliseconds
-    const uint16_t  waypoint_receive_timeout; // milliseconds
+    const uint16_t  waypoint_receive_timeout = 8000; // milliseconds
 
     // saveable rate of each stream
     AP_Int16        streamRates[NUM_STREAMS];
@@ -276,11 +306,19 @@ private:
     uint8_t next_deferred_message;
     uint8_t num_deferred_messages;
 
+    // time when we missed sending a parameter for GCS
+    static uint32_t reserve_param_space_start_ms;
+    
     // bitmask of what mavlink channels are active
     static uint8_t mavlink_active;
 
     // mavlink routing object
     static MAVLink_routing routing;
+
+    // pointer to static dataflash for logging of text messages
+    static DataFlash_Class *dataflash_p;
+
+    static const AP_SerialManager *serialmanager_p;
 
     // a vehicle can optionally snoop on messages for other systems
     static void (*msg_snoop)(const mavlink_message_t* msg);
@@ -288,7 +326,7 @@ private:
     // vehicle specific message send function
     bool try_send_message(enum ap_message id);
 
-    void handle_guided_request(AP_Mission::Mission_Command &cmd);
+    bool handle_guided_request(AP_Mission::Mission_Command &cmd);
     void handle_change_alt_request(AP_Mission::Mission_Command &cmd);
 
     void handle_log_request_list(mavlink_message_t *msg, DataFlash_Class &dataflash);
@@ -324,6 +362,17 @@ private:
 
     // return true if this channel has hardware flow control
     bool have_flow_control(void);
-};
 
-#endif // __GCS_H
+    mavlink_signing_t signing;
+    static mavlink_signing_streams_t signing_streams;
+    static uint32_t last_signing_save_ms;
+    
+    static StorageAccess _signing_storage;
+    void handle_setup_signing(const mavlink_message_t *msg);
+    static bool signing_key_save(const struct SigningKey &key);
+    static bool signing_key_load(struct SigningKey &key);
+    void load_signing_key(void);
+    bool signing_enabled(void) const;
+    uint8_t packet_overhead(void) const { return packet_overhead_chan(chan); }
+    static void save_signing_timestamp(bool force_save_now);
+};

@@ -37,7 +37,7 @@ void AP_BattMonitor_SMBus_I2C::read()
 {
     uint16_t data;
     uint8_t buff[4];
-    uint32_t tnow = hal.scheduler->micros();
+    uint32_t tnow = AP_HAL::micros();
 
     // read voltage
     if (read_word(BATTMONITOR_SMBUS_VOLTAGE, data)) {
@@ -59,7 +59,7 @@ void AP_BattMonitor_SMBus_I2C::read()
 }
 
 // read word from register
-// returns true if read was succesful, false if failed
+// returns true if read was successful, false if failed
 bool AP_BattMonitor_SMBus_I2C::read_word(uint8_t reg, uint16_t& data) const
 {
     // get pointer to i2c bus semaphore
