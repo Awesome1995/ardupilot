@@ -13,14 +13,16 @@ const AP_Param::GroupInfo AC_PrecLand::var_info[] = {
     // @Description: Precision Land enabled/disabled and behaviour
     // @Values: 0:Disabled, 1:Enabled Always Land, 2:Enabled Strict
     // @User: Advanced
-    AP_GROUPINFO("ENABLED", 0, AC_PrecLand, _enabled, 0),
+//    AP_GROUPINFO("ENABLED", 0, AC_PrecLand, _enabled, 0),
+    AP_GROUPINFO("ENABLED", 0, AC_PrecLand, _enabled, 1),
 
     // @Param: TYPE
     // @DisplayName: Precision Land Type
     // @Description: Precision Land Type
     // @Values: 0:None, 1:CompanionComputer, 2:IRLock
     // @User: Advanced
-    AP_GROUPINFO("TYPE",    1, AC_PrecLand, _type, 0),
+//    AP_GROUPINFO("TYPE",    1, AC_PrecLand, _type, 0),
+    AP_GROUPINFO("TYPE",    1, AC_PrecLand, _type, 2),
 
     AP_GROUPEND
 };
@@ -66,7 +68,7 @@ void AC_PrecLand::init()
             _backend = new AC_PrecLand_Companion(*this, _backend_state);
             break;
         // IR Lock
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN || CONFIG_HAL_BOARD == HAL_BOARD_SITL
         case PRECLAND_TYPE_IRLOCK:
             _backend = new AC_PrecLand_IRLock(*this, _backend_state);
             break;
@@ -156,6 +158,8 @@ void AC_PrecLand::calc_angles_and_pos(float alt_above_terrain_cm)
     _target_pos_offset.x = alt*tanf(_ef_angle_to_target.x);
     _target_pos_offset.y = alt*tanf(_ef_angle_to_target.y);
     _target_pos_offset.z = 0;  // not used
+
+    // hal.console->printf("x: %f y:%f \n", _target_pos_offset.x, _target_pos_offset.y);
 
     _have_estimate = true;
 }

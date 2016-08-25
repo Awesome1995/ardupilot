@@ -6,8 +6,10 @@
 #include <AC_PrecLand/AC_PrecLand_Backend.h>
 #include <AP_IRLock/AP_IRLock.h>
 
+#include <AP_IRLock/AP_IRLock_SITL.h>
+
 // this only builds for PX4 so far
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN || CONFIG_HAL_BOARD == HAL_BOARD_SITL
 
 /*
  * AC_PrecLand_IRLock - implements precision landing using target vectors provided
@@ -40,7 +42,11 @@ public:
     void handle_msg(mavlink_message_t* msg) { /* do nothing */ }
 
 private:
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    AP_IRLock_SITL irlock;
+#else
     AP_IRLock_PX4 irlock;
+#endif
 
 };
 #endif
