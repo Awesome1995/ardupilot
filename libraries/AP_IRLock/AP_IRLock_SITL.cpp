@@ -60,29 +60,22 @@ bool AP_IRLock_SITL::update()
     }
     // my additions:S
     irlock_packet pkt;
-    uint16_t count = 0;
     /*
       we re-send the servo packet every 0.1 seconds until we get a
       reply. This allows us to cope with some packet loss to the FDM
      */
     size_t s = sock.recv(&pkt, sizeof(pkt), 5);
-    if (s == sizeof(pkt) && pkt.timestamp >_last_timestamp) {
-        _target_info[count].timestamp = pkt.timestamp;
-        _target_info[count].target_num = pkt.target_num;
-        _target_info[count].angle_x = pkt.angle_x;
-        _target_info[count].angle_y = pkt.angle_y;
-        _target_info[count].size_x = pkt.size_x;
-        _target_info[count].size_y = pkt.size_y;
-        count++;
-        _last_timestamp = pkt.timestamp;
-        _last_update = AP_HAL::millis();
-    }
-
-    // update num_blocks and implement timeout
-    if (count > 0) {
-        _num_targets = count;
-    } else if ((AP_HAL::millis() - _last_update) > IRLOCK_TIMEOUT_MS) {
-        _num_targets = 0;
+    _num_targets = pkt.num_targets;
+    for (uint8_t i=0; i<_num_targets; ++i) {
+      if (s == sizeof(pkt) && pkt.timestamp >_last_timestamp) {
+          _target_info[i].timestamp = pkt.timestamp;
+          _target_info[i].pos_x = pkt.pos_x;
+          _target_info[i].pos_y = pkt.pos_y;
+          _target_info[i].size_x = pkt.size_x;
+          _target_info[i].size_y = pkt.size_y;
+          _last_timestamp = pkt.timestamp;
+          _last_update_ms = AP_HAL::millis();
+      }
     }
 
     // return true if new data found

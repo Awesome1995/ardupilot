@@ -27,12 +27,12 @@ private:
       reply packet sent from simulator to ArduPilot
      */
     struct irlock_packet {
-            double timestamp;
-            double target_num;
-            double angle_x;
-            double angle_y;
-            double size_x;
-            double size_y;
+            uint64_t timestamp;
+            size_t num_targets;
+            float pos_x;
+            float pos_y;
+            float size_x;
+            float size_y;
           };
 
     uint64_t _last_timestamp;
