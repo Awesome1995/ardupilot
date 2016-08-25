@@ -22,26 +22,18 @@ NUTTX_ROOT := $(shell cd $(PX4NUTTX_DIRECTORY) && pwd)
 NUTTX_SRC := $(NUTTX_ROOT)/nuttx/
 UAVCAN_DIR=$(shell cd $(UAVCAN_DIRECTORY) && pwd)/
 
-# warn if user has old PX4Firmware or PX4NuttX trees
-ifneq ($(wildcard $(SKETCHBOOK)/../PX4Firmware),)
-$(warning *** You have an old PX4Firmware tree - see http://dev.ardupilot.com/wiki/git-submodules/)
-endif
-ifneq ($(wildcard $(SKETCHBOOK)/../PX4NuttX),)
-$(warning *** You have an old PX4NuttX tree - see http://dev.ardupilot.com/wiki/git-submodules/)
-endif
-ifneq ($(wildcard $(SKETCHBOOK)/../uavcan),)
-$(warning *** You have an old uavcan tree - see http://dev.ardupilot.com/wiki/git-submodules/)
-endif
-
 NUTTX_GIT_VERSION ?= $(shell cd $(NUTTX_SRC) && git rev-parse HEAD | cut -c1-8)
 PX4_GIT_VERSION   ?= $(shell cd $(PX4_ROOT) && git rev-parse HEAD | cut -c1-8)
 
 EXTRAFLAGS += -DNUTTX_GIT_VERSION="\"$(NUTTX_GIT_VERSION)\""
 EXTRAFLAGS += -DPX4_GIT_VERSION="\"$(PX4_GIT_VERSION)\""
 EXTRAFLAGS += -DUAVCAN=1
+EXTRAFLAGS += -D__STDC_FORMAT_MACROS
 
 # Add missing parts from libc and libstdc++
 EXTRAFLAGS += -DHAVE_STD_NULLPTR_T=0
+EXTRAFLAGS += -DHAVE_ENDIAN_H=0
+EXTRAFLAGS += -DHAVE_BYTESWAP_H=0
 
 EXTRAFLAGS += -I$(BUILDROOT)/libraries/GCS_MAVLink/include/mavlink
 
@@ -122,6 +114,7 @@ px4-clean: clean CHECK_MODULES px4-archives-clean px4-cleandep
 	$(v) /bin/rm -rf $(PX4_ROOT)/src/modules/uORB/topics $(PX4_ROOT)/src/platforms/nuttx/px4_messages
 
 px4-cleandep: clean
+	$(v) mkdir -p $(PX4_ROOT)/Build
 	$(v) find $(PX4_ROOT)/Build -type f -name '*.d' | xargs rm -f
 	$(v) find $(UAVCAN_DIRECTORY) -type f -name '*.d' | xargs rm -f
 	$(v) find $(SKETCHBOOK)/$(SKETCH) -type f -name '*.d' | xargs rm -f

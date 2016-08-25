@@ -44,6 +44,8 @@
  */
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4 && (defined(CONFIG_ARCH_BOARD_PX4FMU_V1) || defined(CONFIG_ARCH_BOARD_PX4FMU_V2))
 #define AP_AHRS_WITH_EKF1 0
+#elif CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN && !defined(CONFIG_ARCH_BOARD_VRBRAIN_V54)
+#define AP_AHRS_WITH_EKF1 0
 #else
 #define AP_AHRS_WITH_EKF1 1
 #endif
@@ -139,6 +141,14 @@ public:
 
     bool get_velocity_NED(Vector3f &vec) const;
     bool get_relative_position_NED(Vector3f &vec) const;
+
+    // return the relative position in North/East order
+    // return true if the estimate is valid
+    bool get_relative_position_NE(Vector2f &posNE) const;
+
+    // return the relative position in North/East order
+    // return true if the estimate is valid
+    bool get_relative_position_D(float &posD) const;
 
     // Get a derivative of the vertical position in m/s which is kinematically consistent with the vertical position is required by some control loops.
     // This is different to the vertical velocity from the EKF which is not always consistent with the verical position due to the various errors that are being corrected for.

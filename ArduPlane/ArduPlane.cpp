@@ -60,6 +60,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(barometer_accumulate,   50,    150),
     SCHED_TASK(update_notify,          50,    300),
     SCHED_TASK(read_rangefinder,       50,    100),
+    SCHED_TASK(ice_update,             10,    100),
     SCHED_TASK(compass_cal_update,     50,    50),
     SCHED_TASK(accel_cal_update,       10,    50),
 #if OPTFLOW == ENABLED
@@ -84,7 +85,8 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(terrain_update,         10,    200),
     SCHED_TASK(update_is_flying_5Hz,    5,    100),
     SCHED_TASK(dataflash_periodic,     50,    400),
-    SCHED_TASK(adsb_update,             1,    400),
+    SCHED_TASK(adsb_update,            10,    100),
+    SCHED_TASK(button_update,           5,    100),
 };
 
 void Plane::setup() 
@@ -164,7 +166,7 @@ void Plane::ahrs_update()
     }
 
     // calculate a scaled roll limit based on current pitch
-    roll_limit_cd = g.roll_limit_cd * cosf(ahrs.pitch);
+    roll_limit_cd = aparm.roll_limit_cd * cosf(ahrs.pitch);
     pitch_limit_min_cd = aparm.pitch_limit_min_cd * fabsf(cosf(ahrs.roll));
 
     // updated the summed gyro used for ground steering and
@@ -311,8 +313,17 @@ void Plane::one_second_loop()
     // make it possible to change control channel ordering at runtime
     set_control_channels();
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+    if (!hal.util->get_soft_armed() && (last_mixer_crc == -1)) {
+        // if disarmed try to configure the mixer
+        setup_failsafe_mixing();
+    }
+#endif // CONFIG_HAL_BOARD
+
     // make it possible to change orientation at runtime
     ahrs.set_orientation();
+
+    adsb.set_stall_speed_cm(aparm.airspeed_min);
 
     // sync MAVLink system ID
     mavlink_system.sysid = g.sysid_this_mav;
@@ -478,12 +489,15 @@ void Plane::update_GPS_10Hz(void)
         if (!hal.util->get_soft_armed()) {
             update_home();
 
-            // zero out any baro drift
-            barometer.set_baro_drift_altitude(0);
+            // reset the landing altitude correction
+            auto_state.land_alt_offset = 0;
         }
 
         // update wind estimate
         ahrs.estimate_wind();
+    } else if (gps.status() < AP_GPS::GPS_OK_FIX_3D && ground_start_count != 0) {
+        // lost 3D fix, start again
+        ground_start_count = 5;
     }
 
     calc_gndspeed_undershoot();
@@ -730,13 +744,14 @@ void Plane::update_flight_mode(void)
     case QLAND:
     case QRTL: {
         // set nav_roll and nav_pitch using sticks
-        nav_roll_cd  = channel_roll->norm_input() * roll_limit_cd;
-        nav_roll_cd = constrain_int32(nav_roll_cd, -roll_limit_cd, roll_limit_cd);
+        int16_t roll_limit = MIN(roll_limit_cd, quadplane.aparm.angle_max);
+        nav_roll_cd  = channel_roll->norm_input() * roll_limit;
+        nav_roll_cd = constrain_int32(nav_roll_cd, -roll_limit, roll_limit);
         float pitch_input = channel_pitch->norm_input();
         if (pitch_input > 0) {
-            nav_pitch_cd = pitch_input * aparm.pitch_limit_max_cd;
+            nav_pitch_cd = pitch_input * MIN(aparm.pitch_limit_max_cd, quadplane.aparm.angle_max);
         } else {
-            nav_pitch_cd = -(pitch_input * pitch_limit_min_cd);
+            nav_pitch_cd = pitch_input * MIN(-pitch_limit_min_cd, quadplane.aparm.angle_max);
         }
         nav_pitch_cd = constrain_int32(nav_pitch_cd, pitch_limit_min_cd, aparm.pitch_limit_max_cd.get());
         break;
@@ -833,6 +848,7 @@ void Plane::set_flight_stage(AP_SpdHgtControl::FlightStage fs)
     switch (fs) {
     case AP_SpdHgtControl::FLIGHT_LAND_APPROACH:
         gcs_send_text_fmt(MAV_SEVERITY_INFO, "Landing approach start at %.1fm", (double)relative_altitude());
+        auto_state.land_in_progress = true;
 #if GEOFENCE_ENABLED == ENABLED 
         if (g.fence_autoenable == 1) {
             if (! geofence_set_enabled(false, AUTO_TOGGLED)) {
@@ -852,13 +868,18 @@ void Plane::set_flight_stage(AP_SpdHgtControl::FlightStage fs)
 
     case AP_SpdHgtControl::FLIGHT_LAND_ABORT:
         gcs_send_text_fmt(MAV_SEVERITY_NOTICE, "Landing aborted, climbing to %dm", auto_state.takeoff_altitude_rel_cm/100);
+        auto_state.land_in_progress = false;
         break;
 
     case AP_SpdHgtControl::FLIGHT_LAND_PREFLARE:
     case AP_SpdHgtControl::FLIGHT_LAND_FINAL:
+        auto_state.land_in_progress = true;
+        break;
+
     case AP_SpdHgtControl::FLIGHT_NORMAL:
     case AP_SpdHgtControl::FLIGHT_VTOL:
     case AP_SpdHgtControl::FLIGHT_TAKEOFF:
+        auto_state.land_in_progress = false;
         break;
     }
     
@@ -897,26 +918,15 @@ void Plane::update_alt()
 
     if (auto_throttle_mode && !throttle_suppressed) {        
 
-        bool is_doing_auto_land = false;
         float distance_beyond_land_wp = 0;
-
-        switch (flight_stage) {
-        case AP_SpdHgtControl::FLIGHT_LAND_APPROACH:
-        case AP_SpdHgtControl::FLIGHT_LAND_PREFLARE:
-        case AP_SpdHgtControl::FLIGHT_LAND_FINAL:
-            is_doing_auto_land = true;
-            if (location_passed_point(current_loc, prev_WP_loc, next_WP_loc)) {
-                distance_beyond_land_wp = get_distance(current_loc, next_WP_loc);
-            }
-            break;
-        default:
-            break;
+        if (auto_state.land_in_progress && location_passed_point(current_loc, prev_WP_loc, next_WP_loc)) {
+            distance_beyond_land_wp = get_distance(current_loc, next_WP_loc);
         }
 
         SpdHgt_Controller->update_pitch_throttle(relative_target_altitude_cm(),
                                                  target_airspeed_cm,
                                                  flight_stage,
-                                                 is_doing_auto_land,
+                                                 auto_state.land_in_progress,
                                                  distance_beyond_land_wp,
                                                  get_takeoff_pitch_min_cd(),
                                                  throttle_nudge,

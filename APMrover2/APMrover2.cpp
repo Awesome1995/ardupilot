@@ -79,6 +79,7 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
     SCHED_TASK(frsky_telemetry_send,    5,    100),
 #endif
     SCHED_TASK(dataflash_periodic,     50,    300),
+    SCHED_TASK(button_update,          5,     100),
 };
 
 /*
@@ -391,12 +392,8 @@ void Rover::update_GPS_10Hz(void)
                 ground_start_count = 0;
             }
         }
-        Vector3f velocity;
-        if (ahrs.get_velocity_NED(velocity)) {
-            ground_speed = norm(velocity.x, velocity.y);
-        } else {
-            ground_speed   = gps.ground_speed();
-        }
+        // get ground speed estimate from AHRS
+        ground_speed = ahrs.groundspeed();
 
 #if CAMERA == ENABLED
         if (camera.update_location(current_loc, rover.ahrs) == true) {
@@ -415,14 +412,12 @@ void Rover::update_current_mode(void)
     switch (control_mode){
     case AUTO:
     case RTL:
-        set_reverse(false);
         calc_lateral_acceleration();
         calc_nav_steer();
         calc_throttle(g.speed_cruise);
         break;
 
     case GUIDED:
-        set_reverse(false);
         if (rtl_complete || verify_RTL()) {
             // we have reached destination so stop where we are
             if (channel_throttle->get_servo_out() != g.throttle_min.get()) {
@@ -487,7 +482,6 @@ void Rover::update_current_mode(void)
         // hold position - stop motors and center steering
         channel_throttle->set_servo_out(0);
         channel_steer->set_servo_out(0);
-        set_reverse(false);
         break;
 
     case INITIALISING:

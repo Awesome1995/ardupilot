@@ -56,7 +56,6 @@
 #include <APM_OBC/APM_OBC.h>
 #include <APM_Control/APM_Control.h>
 #include <APM_Control/AP_AutoTune.h>
-#include <GCS_MAVLink/GCS.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>    // MAVLink GCS definitions
 #include <AP_SerialManager/AP_SerialManager.h>   // Serial manager library
 #include <AP_Mount/AP_Mount.h>           // Camera/Antenna mount
@@ -89,7 +88,10 @@
 #include <AP_RSSI/AP_RSSI.h>                   // RSSI Library
 #include <AP_Parachute/AP_Parachute.h>
 #include <AP_ADSB/AP_ADSB.h>
+#include <AP_Button/AP_Button.h>
+#include <AP_ICEngine/AP_ICEngine.h>
 
+#include "GCS_Mavlink.h"
 #include "quadplane.h"
 #include "tuning.h"
 
@@ -129,8 +131,9 @@ protected:
  */
 class Plane : public AP_HAL::HAL::Callbacks {
 public:
-    friend class GCS_MAVLINK;
+    friend class GCS_MAVLINK_Plane;
     friend class Parameters;
+    friend class ParametersG2;
     friend class AP_Arming_Plane;
     friend class QuadPlane;
     friend class AP_Tuning_Plane;
@@ -146,8 +149,9 @@ private:
     AP_Vehicle::FixedWing aparm;
     AP_HAL::BetterStream* cliSerial;
 
-    // Global parameters are all contained within the 'g' class.
+    // Global parameters are all contained within the 'g' and 'g2' classes.
     Parameters g;
+    ParametersG2 g2;
 
     // main loop scheduler
     AP_Scheduler scheduler;
@@ -254,7 +258,7 @@ private:
     // GCS selection
     AP_SerialManager serial_manager;
     const uint8_t num_gcs = MAVLINK_COMM_NUM_BUFFERS;
-    GCS_MAVLINK gcs[MAVLINK_COMM_NUM_BUFFERS];
+    GCS_MAVLINK_Plane gcs[MAVLINK_COMM_NUM_BUFFERS];
 
     // selected navigation controller
     AP_Navigation *nav_controller = &L1_controller;
@@ -439,6 +443,12 @@ private:
         // Flag to indicate if we have triggered pre-flare. This occurs when we have reached LAND_PF_ALT
         bool land_pre_flare:1;
 
+        // are we in auto and flight mode is approach || pre-flare || final (flare)
+        bool land_in_progress:1;
+
+        // are we headed to the land approach waypoint? Works for any nav type
+        bool wp_is_land_approach:1;
+
         // should we fly inverted?
         bool inverted_flight:1;
 
@@ -521,7 +531,21 @@ private:
 
         // are we doing loiter mode as a VTOL?
         bool vtol_loiter:1;
+
+        // landing altitude offset (meters)
+        float land_alt_offset;
     } auto_state;
+
+    struct {
+        // roll pitch yaw commanded from external controller in centidegrees
+        Vector3l forced_rpy_cd;
+        // last time we heard from the external controller
+        Vector3l last_forced_rpy_ms;
+
+        // throttle  commanded from external controller in percent
+        float forced_throttle;
+        uint32_t last_forced_throttle_ms;
+} guided_state;
 
     struct {
         // on hard landings, only check once after directly a landing so you
@@ -546,11 +570,15 @@ private:
 
     // true if we are in an auto-throttle mode, which means
     // we need to run the speed/height controller
-    bool auto_throttle_mode;
+    bool auto_throttle_mode:1;
 
+    // true if we are in an auto-navigation mode, which controls whether control input is ignored
+    // with STICK_MIXING=0
+    bool auto_navigation_mode:1;
+    
     // this controls throttle suppression in auto modes
-    bool throttle_suppressed;
-
+    bool throttle_suppressed:1;
+	
     // reduce throttle to eliminate battery over-current
     int8_t  throttle_watt_limit_max;
     int8_t  throttle_watt_limit_min; // for reverse thrust
@@ -602,18 +630,6 @@ private:
 #endif
 
     AP_ADSB adsb {ahrs};
-    struct {
-
-        // flag to signify the current mode is set by ADSB evasion logic
-        bool is_evading:1;
-
-        // generic timestamp for evasion algorithms
-        uint32_t timestamp_ms;
-
-        // previous wp to restore to when switching between modes back to AUTO
-        Location prev_wp;
-    } adsb_state;
-
 
     // Outback Challenge Failsafe Support
 #if OBC_FAILSAFE == ENABLED
@@ -766,7 +782,6 @@ private:
     int32_t last_mixer_crc = -1;
 #endif // CONFIG_HAL_BOARD
     
-    void demo_servos(uint8_t i);
     void adjust_nav_pitch_throttle(void);
     void update_load_factor(void);
     void send_heartbeat(mavlink_channel_t chan);
@@ -777,7 +792,6 @@ private:
     void send_nav_controller_output(mavlink_channel_t chan);
     void send_position_target_global_int(mavlink_channel_t chan);
     void send_servo_out(mavlink_channel_t chan);
-    void send_radio_out(mavlink_channel_t chan);
     void send_vfr_hud(mavlink_channel_t chan);
     void send_simstate(mavlink_channel_t chan);
     void send_hwstatus(mavlink_channel_t chan);
@@ -823,7 +837,7 @@ private:
     int32_t get_RTL_altitude();
     float relative_altitude(void);
     int32_t relative_altitude_abs_cm(void);
-    float relative_ground_altitude(void);
+    float relative_ground_altitude(bool use_rangefinder_if_available);
     void set_target_altitude_current(void);
     void set_target_altitude_current_adjusted(void);
     void set_target_altitude_location(const Location &loc);
@@ -839,6 +853,7 @@ private:
     void setup_terrain_target_alt(Location &loc);
     int32_t adjusted_altitude_cm(void);
     int32_t adjusted_relative_altitude_cm(void);
+    float mission_alt_offset(void);
     float height_above_target(void);
     float lookahead_adjustment(void);
     float rangefinder_correction(void);
@@ -915,7 +930,8 @@ private:
     bool setup_failsafe_mixing(void);
     void set_control_channels(void);
     void init_rc_in();
-    void init_rc_out();
+    void init_rc_out_main();
+    void init_rc_out_aux();
     void rudder_arm_disarm_check();
     void read_radio();
     void control_failsafe(uint16_t pwm);
@@ -930,6 +946,8 @@ private:
     void read_battery(void);
     void read_receiver_rssi(void);
     void rpm_update(void);
+    void button_update(void);
+    void ice_update(void);
     void report_radio();
     void report_ins();
     void report_compass();
@@ -988,9 +1006,6 @@ private:
     void update_logging2(void);
     void terrain_update(void);
     void adsb_update(void);
-    bool adsb_evasion_start(void);
-    void adsb_evasion_stop(void);
-    void adsb_evasion_ongoing(void);
     void update_flight_mode(void);
     void stabilize();
     void set_servos_idle(void);

@@ -130,8 +130,23 @@ void Plane::init_home()
 */
 void Plane::update_home()
 {
+    if (fabsf(barometer.get_altitude()) > 2) {
+        // don't auto-update if we have changed barometer altitude
+        // significantly. This allows us to cope with slow baro drift
+        // but not re-do home and the baro if we have changed height
+        // significantly
+        return;
+    }
     if (home_is_set == HOME_SET_NOT_LOCKED) {
-        ahrs.set_home(gps.location());
+        Location loc = gps.location();
+        Location origin;
+        // if an EKF origin is available then we leave home equal to
+        // the height of that origin. This ensures that our relative
+        // height calculations are using the same origin
+        if (ahrs.get_origin(origin)) {
+            loc.alt = origin.alt;
+        }
+        ahrs.set_home(loc);
         Log_Write_Home_And_Origin();
         GCS_MAVLINK::send_home_all(gps.location());
     }

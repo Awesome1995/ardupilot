@@ -26,21 +26,21 @@ def fly_mission(mavproxy, mav, filename, fence, height_accuracy=-1):
     mavproxy.expect('Requesting [0-9]+ waypoints')
     mavproxy.send('mode AUTO\n')
     wait_mode(mav, 'AUTO')
-    if not wait_waypoint(mav, 1, 9, max_dist=60, timeout=1200):
+    if not wait_waypoint(mav, 1, 19, max_dist=60, timeout=1200):
         return False
     mavproxy.expect('DISARMED')
     # wait for blood sample here
-    mavproxy.send('wp set 10\n')
+    mavproxy.send('wp set 20\n')
     mavproxy.send('arm throttle\n')
     mavproxy.expect('ARMED')
-    if not wait_waypoint(mav, 10, 18, max_dist=60, timeout=1200):
+    if not wait_waypoint(mav, 20, 34, max_dist=60, timeout=1200):
         return False
     mavproxy.expect('DISARMED')
     print("Mission OK")
     return True
 
 
-def fly_QuadPlane(binary, viewerip=None, map=False, valgrind=False):
+def fly_QuadPlane(binary, viewerip=None, map=False, valgrind=False, gdb=False):
     '''fly QuadPlane in SIL
 
     you can pass viewerip as an IP address to optionally send fg and
@@ -55,7 +55,7 @@ def fly_QuadPlane(binary, viewerip=None, map=False, valgrind=False):
         options += ' --map'
 
     sil = util.start_SIL(binary, model='quadplane', wipe=True, home=HOME_LOCATION, speedup=10,
-                         defaults_file=os.path.join(testdir, 'quadplane.parm'), valgrind=valgrind)
+                         defaults_file=os.path.join(testdir, 'default_params/quadplane.parm'), valgrind=valgrind, gdb=gdb)
     mavproxy = util.start_MAVProxy_SIL('QuadPlane', options=options)
     mavproxy.expect('Telemetry log: (\S+)')
     logfile = mavproxy.match.group(1)
@@ -101,8 +101,8 @@ def fly_QuadPlane(binary, viewerip=None, map=False, valgrind=False):
         homeloc = mav.location()
         print("Home location: %s" % homeloc)
 
-        # wait for EKF to settle
-        wait_seconds(mav, 15)
+        # wait for EKF and GPS checks to pass
+        wait_seconds(mav, 30)
 
         mavproxy.send('arm throttle\n')
         mavproxy.expect('ARMED')

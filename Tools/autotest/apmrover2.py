@@ -14,8 +14,8 @@ HOME=mavutil.location(40.071374969556928,-105.22978898137808,1583.702759,246)
 homeloc = None
 
 def arm_rover(mavproxy, mav):
-    # wait for EKF to settle
-    wait_seconds(mav, 15)
+    # wait for EKF and GPS checks to pass
+    wait_seconds(mav, 30)
 
     mavproxy.send('arm throttle\n')
     mavproxy.expect('ARMED')
@@ -79,7 +79,7 @@ def drive_mission(mavproxy, mav, filename):
     return True
 
 
-def drive_APMrover2(binary, viewerip=None, map=False, valgrind=False):
+def drive_APMrover2(binary, viewerip=None, map=False, valgrind=False, gdb=False):
     '''drive APMrover2 in SIL
 
     you can pass viewerip as an IP address to optionally send fg and
@@ -101,7 +101,7 @@ def drive_APMrover2(binary, viewerip=None, map=False, valgrind=False):
     mavproxy.expect('Received [0-9]+ parameters')
 
     # setup test parameters
-    mavproxy.send("param load %s/Rover.parm\n" % testdir)
+    mavproxy.send("param load %s/default_params/Rover.parm\n" % testdir)
     mavproxy.expect('Loaded [0-9]+ parameters')
     mavproxy.send("param set LOG_REPLAY 1\n")
     mavproxy.send("param set LOG_DISARMED 1\n")
@@ -111,7 +111,7 @@ def drive_APMrover2(binary, viewerip=None, map=False, valgrind=False):
     util.pexpect_close(mavproxy)
     util.pexpect_close(sil)
 
-    sil = util.start_SIL(binary, model='rover', home=home, speedup=10, valgrind=valgrind)
+    sil = util.start_SIL(binary, model='rover', home=home, speedup=10, valgrind=valgrind, gdb=gdb)
     mavproxy = util.start_MAVProxy_SIL('APMrover2', options=options)
     mavproxy.expect('Telemetry log: (\S+)')
     logfile = mavproxy.match.group(1)

@@ -21,6 +21,7 @@
 #include <AP_RangeFinder/AP_RangeFinder.h>
 #include <DataFlash/LogStructure.h>
 #include <AP_Motors/AP_Motors.h>
+#include <AP_Rally/AP_Rally.h>
 #include <stdint.h>
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
@@ -136,7 +137,7 @@ public:
     void Log_Write_ESC(void);
     void Log_Write_Airspeed(AP_Airspeed &airspeed);
     void Log_Write_Attitude(AP_AHRS &ahrs, const Vector3f &targets);
-    void Log_Write_Current(const AP_BattMonitor &battery, int16_t throttle);
+    void Log_Write_Current(const AP_BattMonitor &battery);
     void Log_Write_Compass(const Compass &compass, uint64_t time_us=0);
     void Log_Write_Mode(uint8_t mode, uint8_t reason = 0);
 
@@ -149,6 +150,7 @@ public:
                         const AP_Motors &motors,
                         const AC_AttitudeControl &attitude_control,
                         const AC_PosControl &pos_control);
+    void Log_Write_Rally(const AP_Rally &rally);
 
     void Log_Write(const char *name, const char *labels, const char *fmt, ...);
 

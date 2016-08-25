@@ -100,7 +100,7 @@ void UARTDriver::end()
 {
 }
 
-int16_t UARTDriver::available(void)
+uint32_t UARTDriver::available(void)
 {
     _check_connection();
 
@@ -111,9 +111,7 @@ int16_t UARTDriver::available(void)
     return _readbuffer.available();
 }
 
-
-
-int16_t UARTDriver::txspace(void)
+uint32_t UARTDriver::txspace(void)
 {
     _check_connection();
     if (!_connected) {
@@ -271,7 +269,7 @@ void UARTDriver::_tcp_start_client(const char *address, uint16_t port)
 #ifdef HAVE_SOCK_SIN_LEN
     sockaddr.sin_len = sizeof(sockaddr);
 #endif
-    sockaddr.sin_port = port;
+    sockaddr.sin_port = htons(port);
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_addr.s_addr = inet_addr(address);
 
@@ -367,6 +365,9 @@ void UARTDriver::_check_connection(void)
  */
 bool UARTDriver::_select_check(int fd)
 {
+    if (fd == -1) {
+        return false;
+    }
     fd_set fds;
     struct timeval tv;
 

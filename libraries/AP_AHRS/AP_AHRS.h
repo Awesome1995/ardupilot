@@ -293,12 +293,21 @@ public:
         return false;
     }
 
+    // return a position relative to home in meters, North/East
+    // order. Return true if estimate is valid
+    virtual bool get_relative_position_NE(Vector2f &vecNE) const {
+        return false;
+    }
+
+    // return a Down position relative to home in meters
+    // Return true if estimate is valid
+    virtual bool get_relative_position_D(float &posD) const {
+        return false;
+    }
+
     // return ground speed estimate in meters/second. Used by ground vehicles.
-    float groundspeed(void) const {
-        if (_gps.status() <= AP_GPS::NO_FIX) {
-            return 0.0f;
-        }
-        return _gps.ground_speed();
+    float groundspeed(void) {
+        return groundspeed_vector().length();
     }
 
     // return true if we will use compass for yaw

@@ -24,6 +24,8 @@ bool Copter::all_arming_checks_passing(bool arming_from_gcs)
 {
     if (pre_arm_checks(true)) {
         set_pre_arm_check(true);
+    } else {
+        return false;
     }
 
     return ap.pre_arm_check && arm_checks(true, arming_from_gcs);
@@ -51,7 +53,7 @@ bool Copter::pre_arm_checks(bool display_failure)
     // if it is, switch needs to be in disabled position to arm
     // otherwise exit immediately.  This check to be repeated,
     // as state can change at any time.
-    if (ap.using_interlock && motors.get_interlock()){
+    if (ap.using_interlock && ap.motor_interlock_switch) {
         if (display_failure) {
             gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: Motor Interlock Enabled");
         }
@@ -216,6 +218,10 @@ bool Copter::pre_arm_checks(bool display_failure)
                      */
                     threshold *= 2;
                 }
+
+                // EKF is less sensitive to Z-axis error
+                vec_diff.z *= 0.5f;
+
                 if (vec_diff.length() > threshold) {
                     if (display_failure) {
                         gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: inconsistent Accelerometers");
@@ -335,6 +341,14 @@ bool Copter::pre_arm_checks(bool display_failure)
 
         // check for missing terrain data
         if (!pre_arm_terrain_check(display_failure)) {
+            return false;
+        }
+
+        // check adsb avoidance failsafe
+        if (failsafe.adsb) {
+            if (display_failure) {
+                gcs_send_text(MAV_SEVERITY_CRITICAL,"Arm: ADSB threat detected");
+            }
             return false;
         }
     }
@@ -598,7 +612,8 @@ bool Copter::arm_checks(bool display_failure, bool arming_from_gcs)
     }
 
     // if we are using motor interlock switch and it's enabled, fail to arm
-    if (ap.using_interlock && motors.get_interlock()){
+    // skip check in Throw mode which takes control of the motor interlock
+    if (ap.using_interlock && motors.get_interlock()) {
         gcs_send_text(MAV_SEVERITY_CRITICAL,"Arm: Motor Interlock Enabled");
         return false;
     }
@@ -677,6 +692,16 @@ bool Copter::arm_checks(bool display_failure, bool arming_from_gcs)
         }
     }
 
+    // check adsb
+    if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_PARAMETERS)) {
+        if (failsafe.adsb) {
+            if (display_failure) {
+                gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: ADSB threat detected");
+            }
+            return false;
+        }
+    }
+
     // check throttle
     if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_RC)) {
         // check throttle is not too low - must be above failsafe throttle
@@ -692,9 +717,9 @@ bool Copter::arm_checks(bool display_failure, bool arming_from_gcs)
         }
 
         // check throttle is not too high - skips checks if arming from GCS in Guided
-        if (!(arming_from_gcs && control_mode == GUIDED)) {
+        if (!(arming_from_gcs && (control_mode == GUIDED || control_mode == GUIDED_NOGPS))) {
             // above top of deadband is too always high
-            if (channel_throttle->get_control_in() > get_takeoff_trigger_throttle()) {
+            if (get_pilot_desired_climb_rate(channel_throttle->get_control_in()) > 0.0f) {
                 if (display_failure) {
                     #if FRAME_CONFIG == HELI_FRAME
                     gcs_send_text(MAV_SEVERITY_CRITICAL,"Arm: Collective too high");

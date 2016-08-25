@@ -251,7 +251,7 @@ const AP_Param::Info Plane::var_info[] = {
 
     // @Param: LAND_ABORT_DEG
     // @DisplayName: Landing auto-abort slope threshold
-    // @Description: This parameter is used when using a rangefinder during landing for altitude correction from baro drift (RNGFND_LANDING=1) and the altitude correction indicates your actual altitude is higher than the intended slope path. Normally it would pitch down steeply but that can result in a crash with high airspeed so this allows remembering the baro offset and self-abort the landing and come around for another landing with the correct baro offset applied for a perfect slope. An auto-abort go-around will only happen once, next attempt will not auto-abort again. This operation happens entirely automatically in AUTO mode. This value is the delta degrees threshold to trigger the go-around compared to the origional slope. Example: if set to 5 deg and the mission planned slope is 15 deg then if the new slope is 21 then it will go-around. Set to 0 to disable. Requires LAND_SLOPE_RCALC > 0.
+    // @Description: This parameter is used when using a rangefinder during landing for altitude correction from baro drift (RNGFND_LANDING=1) and the altitude correction indicates your actual altitude is higher than the intended slope path. Normally it would pitch down steeply but that can result in a crash with high airspeed so this allows remembering the baro offset and self-abort the landing and come around for another landing with the correct baro offset applied for a perfect slope. An auto-abort go-around will only happen once, next attempt will not auto-abort again. This operation happens entirely automatically in AUTO mode. This value is the delta degrees threshold to trigger the go-around compared to the original slope. Example: if set to 5 deg and the mission planned slope is 15 deg then if the new slope is 21 then it will go-around. Set to 0 to disable. Requires LAND_SLOPE_RCALC > 0.
     // @Range: 0 90
     // @Units: degrees
     // @Increment: 0.1
@@ -410,8 +410,8 @@ const AP_Param::Info Plane::var_info[] = {
 #if GEOFENCE_ENABLED == ENABLED
     // @Param: FENCE_ACTION
     // @DisplayName: Action on geofence breach
-    // @Description: What to do on fence breach. If this is set to 0 then no action is taken, and geofencing is disabled. If this is set to 1 then the plane will enter GUIDED mode, with the target waypoint as the fence return point. If this is set to 2 then the fence breach is reported to the ground station, but no other action is taken. If set to 3 then the plane enters guided mode but the pilot retains manual throttle control.
-    // @Values: 0:None,1:GuidedMode,2:ReportOnly,3:GuidedModeThrPass
+    // @Description: What to do on fence breach. If this is set to 0 then no action is taken, and geofencing is disabled. If this is set to 1 then the plane will enter GUIDED mode, with the target waypoint as the fence return point. If this is set to 2 then the fence breach is reported to the ground station, but no other action is taken. If set to 3 then the plane enters guided mode but the pilot retains manual throttle control. If set to 4 the plane enters RTL mode, with the target waypoint as the closest rally point (or home point if there are no rally points).
+    // @Values: 0:None,1:GuidedMode,2:ReportOnly,3:GuidedModeThrPass,4:RTL_Mode
     // @User: Standard
     GSCALAR(fence_action,           "FENCE_ACTION",   0),
 
@@ -736,7 +736,7 @@ const AP_Param::Info Plane::var_info[] = {
     // @Range: 0 9000
     // @Increment: 1
     // @User: Standard
-    GSCALAR(roll_limit_cd,          "LIM_ROLL_CD",    HEAD_MAX_CENTIDEGREE),
+    ASCALAR(roll_limit_cd,          "LIM_ROLL_CD",    HEAD_MAX_CENTIDEGREE),
 
     // @Param: LIM_PITCH_MAX
     // @DisplayName: Maximum Pitch Angle
@@ -862,6 +862,22 @@ const AP_Param::Info Plane::var_info[] = {
     // @Values: 0:Disabled,1:Enabled
     // @User: User
     GSCALAR(rudder_only,             "RUDDER_ONLY",  0),
+
+    // @Param: MIXING_OFFSET
+    // @DisplayName: Mixing Offset
+    // @Description: The offset for the Vtail and elevon output mixers, as a percentage. This can be used in combination with MIXING_GAIN to configure how the control surfaces respond to input. The response to aileron or elevator input can be increased by setting this parameter to a positive or negative value. A common usage is to enter a positive value to increase the aileron response of the elevons of a flying wing. The default value of zero will leave the aileron-input response equal to the elevator-input response.
+    // @Units: percent
+    // @Range: -1000 1000
+    // @User: User
+    GSCALAR(mixing_offset,          "MIXING_OFFSET",  0),
+
+    // @Param: DSPOILR_RUD_RATE
+    // @DisplayName: Differential spoilers rudder rate
+    // @Description: Sets the amount of deflection that the rudder output will apply to the differential spoilers, as a percentage. The default value of 100 results in full rudder applying full deflection. A value of 0 will result in the differential spoilers exactly following the elevons (no rudder effect).
+    // @Units: percent
+    // @Range: -1000 1000
+    // @User: User
+    GSCALAR(dspoiler_rud_rate,      "DSPOILR_RUD_RATE",  DSPOILR_RUD_RATE_DEFAULT),
 
     // @Param: SYS_NUM_RESETS
     // @DisplayName: Num Resets
@@ -1341,8 +1357,34 @@ const AP_Param::Info Plane::var_info[] = {
     // @Path: ../libraries/AP_Notify/AP_Notify.cpp
     GOBJECT(notify, "NTF_",  AP_Notify),
 
+    // @Group: 
+    // @Path: Parameters.cpp
+    GOBJECT(g2, "",  ParametersG2),
+    
     AP_VAREND
 };
+
+/*
+  2nd group of parameters
+ */
+const AP_Param::GroupInfo ParametersG2::var_info[] = {
+
+    // @Group: BTN_
+    // @Path: ../libraries/AP_Button/AP_Button.cpp
+    AP_SUBGROUPINFO(button, "BTN_", 1, ParametersG2, AP_Button),
+
+    // @Group: ICE_
+    // @Path: ../libraries/AP_ICEngine/AP_ICEngine.cpp
+    AP_SUBGROUPINFO(ice_control, "ICE_", 2, ParametersG2, AP_ICEngine),
+    
+    AP_GROUPEND
+};
+
+ParametersG2::ParametersG2(void) :
+    ice_control(plane.rpm_sensor, plane.ahrs)
+{
+    AP_Param::setup_object_defaults(this, var_info);
+}
 
 /*
   This is a conversion table from old parameter values to new

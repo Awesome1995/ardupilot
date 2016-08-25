@@ -6,6 +6,8 @@
 #include <AP_InertialNav/AP_InertialNav.h>
 #include <AC_AttitudeControl/AC_PosControl.h>
 #include <AC_WPNav/AC_WPNav.h>
+#include <AC_Fence/AC_Fence.h>
+#include <AC_Avoidance/AC_Avoid.h>
 
 /*
   frame types for quadplane build. Most case be set with
@@ -185,6 +187,8 @@ private:
 
     void guided_start(void);
     void guided_update(void);
+
+    void check_throttle_suppression(void);
     
     AP_Int16 transition_time_ms;
 
@@ -193,8 +197,6 @@ private:
     // min and max PWM for throttle
     AP_Int16 thr_min_pwm;
     AP_Int16 thr_max_pwm;
-    AP_Int16 throttle_mid;
-    AP_Int16 throttle_min;
 
     // speed below which quad assistance is given
     AP_Float assist_speed;
@@ -210,6 +212,7 @@ private:
     
     // alt to switch to QLAND_FINAL
     AP_Float land_final_alt;
+    AP_Float vel_forward_alt_cutoff;
     
     AP_Int8 enable;
     AP_Int8 transition_pitch_max;
@@ -219,11 +222,18 @@ private:
 
     // control if a VTOL GUIDED will be used
     AP_Int8 guided_mode;
+
+    // control ESC throttle calibration
+    AP_Int8 esc_calibration;
+    void run_esc_calibration(void);
+
+    // ICEngine control on landing
+    AP_Int8 land_icengine_cut;
     
     struct {
         AP_Float gain;
         float integrator;
-        uint32_t lastt_ms;
+        uint32_t last_ms;
         int8_t last_pct;
     } vel_forward;
 
@@ -254,13 +264,17 @@ private:
     } transition_state;
 
     // true when waiting for pilot throttle
-    bool throttle_wait;
+    bool throttle_wait:1;
 
     // true when quad is assisting a fixed wing mode
-    bool assisted_flight;
+    bool assisted_flight:1;
 
-    // time when motors reached lower limit
-    uint32_t motors_lower_limit_start_ms;
+    struct {
+        // time when motors reached lower limit
+        uint32_t lower_limit_start_ms;
+        uint32_t land_start_ms;
+        float vpos_start_m;
+    } landing_detect;
 
     // time we last set the loiter target
     uint32_t last_loiter_ms;
@@ -299,6 +313,9 @@ private:
         uint8_t motor_count;          // number of motors to cycle
     } motor_test;
 
+    // time of last control log message
+    uint32_t last_ctrl_log_ms;
+    
     // tiltrotor control variables
     struct {
         AP_Int16 tilt_mask;
@@ -309,6 +326,9 @@ private:
         bool motors_active:1;
     } tilt;
 
+    // time when motors were last active
+    uint32_t last_motors_active_ms;
+    
     void tiltrotor_slew(float tilt);
     void tiltrotor_update(void);
     void tilt_compensate(float *thrust, uint8_t num_motors);

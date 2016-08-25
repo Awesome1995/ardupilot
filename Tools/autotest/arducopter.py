@@ -21,9 +21,9 @@ AVCHOME=mavutil.location(40.072842,-105.230575,1586,0)
 
 homeloc = None
 num_wp = 0
-speedup_default = 5
+speedup_default = 10
 
-def hover(mavproxy, mav, hover_throttle=1450):
+def hover(mavproxy, mav, hover_throttle=1500):
     mavproxy.send('rc 3 %u\n' % hover_throttle)
     return True
 
@@ -158,7 +158,7 @@ def fly_square(mavproxy, mav, side=50, timeout=300):
     save_wp(mavproxy, mav)
 
     # switch back to stabilize mode
-    mavproxy.send('rc 3 1430\n')
+    mavproxy.send('rc 3 1500\n')
     mavproxy.send('switch 6\n')
     wait_mode(mav, 'STABILIZE')
 
@@ -253,6 +253,9 @@ def fly_throttle_failsafe(mavproxy, mav, side=60, timeout=180):
     if not wait_heading(mav, 135):
         return False
     mavproxy.send('rc 4 1500\n')
+
+    # raise throttle slightly to avoid hitting the ground
+    mavproxy.send('rc 3 1600\n')
 
     # switch to stabilize mode
     mavproxy.send('switch 6\n')
@@ -393,8 +396,9 @@ def fly_fence_test(mavproxy, mav, timeout=180):
     mavproxy.send('switch 5\n') # loiter mode
     wait_mode(mav, 'LOITER')
 
-    # enable fence
+    # enable fence, disable avoidance
     mavproxy.send('param set FENCE_ENABLE 1\n')
+    mavproxy.send('param set AVOID_ENABLE 0\n')
 
     # first east
     print("turn east")
@@ -432,8 +436,11 @@ def fly_fence_test(mavproxy, mav, timeout=180):
             wait_mode(mav, 'STABILIZE')
             print("Reached home OK")
             return True
-    # disable fence
+
+    # disable fence, enable avoidance
     mavproxy.send('param set FENCE_ENABLE 0\n')
+    mavproxy.send('param set AVOID_ENABLE 1\n')
+
     # reduce throttle
     mavproxy.send('rc 3 1000\n')
     # switch mode to stabilize
@@ -455,13 +462,15 @@ def show_gps_and_sim_positions(mavproxy, on_off):
         mavproxy.send('map set showsimpos 0\n')
     
 # fly_gps_glitch_loiter_test - fly south east in loiter and test reaction to gps glitch
-def fly_gps_glitch_loiter_test(mavproxy, mav, timeout=30, max_distance=20):
+def fly_gps_glitch_loiter_test(mavproxy, mav, use_map=False, timeout=30, max_distance=20):
     '''hold loiter position'''
     mavproxy.send('switch 5\n') # loiter mode
     wait_mode(mav, 'LOITER')
 
     # turn on simulator display of gps and actual position
-    show_gps_and_sim_positions(mavproxy, True)
+    if (use_map):
+        show_gps_and_sim_positions(mavproxy, True)
+
 
     # set-up gps glitch array
     glitch_lat = [0.0002996,0.0006958,0.0009431,0.0009991,0.0009444,0.0007716,0.0006221]
@@ -475,20 +484,23 @@ def fly_gps_glitch_loiter_test(mavproxy, mav, timeout=30, max_distance=20):
     print("turn south east")
     mavproxy.send('rc 4 1580\n')
     if not wait_heading(mav, 150):
-        show_gps_and_sim_positions(mavproxy, False)
+        if (use_map):
+            show_gps_and_sim_positions(mavproxy, False)
         return False
     mavproxy.send('rc 4 1500\n')
 
     # fly forward (south east) at least 60m
     mavproxy.send('rc 2 1100\n')
     if not wait_distance(mav, 60):
-        show_gps_and_sim_positions(mavproxy, False)
+        if (use_map):
+            show_gps_and_sim_positions(mavproxy, False)
         return False
     mavproxy.send('rc 2 1500\n')
 
     # wait for copter to slow down
     if not wait_groundspeed(mav, 0, 1):
-        show_gps_and_sim_positions(mavproxy, False)
+        if (use_map):
+            show_gps_and_sim_positions(mavproxy, False)
         return False
 
     # record time and position
@@ -536,7 +548,8 @@ def fly_gps_glitch_loiter_test(mavproxy, mav, timeout=30, max_distance=20):
         glitch_current = -1
         mavproxy.send('param set SIM_GPS_GLITCH_X 0\n')
         mavproxy.send('param set SIM_GPS_GLITCH_Y 0\n')
-    show_gps_and_sim_positions(mavproxy, False)
+    if (use_map):
+        show_gps_and_sim_positions(mavproxy, False)
 
     if success:
         print("GPS glitch test passed!  stayed within %u meters for %u seconds" % (max_distance, timeout))
@@ -545,7 +558,7 @@ def fly_gps_glitch_loiter_test(mavproxy, mav, timeout=30, max_distance=20):
     return success
 
 # fly_gps_glitch_auto_test - fly mission and test reaction to gps glitch
-def fly_gps_glitch_auto_test(mavproxy, mav, timeout=120):
+def fly_gps_glitch_auto_test(mavproxy, mav, use_map=False, timeout=120):
 
     # set-up gps glitch array
     glitch_lat = [0.0002996,0.0006958,0.0009431,0.0009991,0.0009444,0.0007716,0.0006221]
@@ -562,7 +575,8 @@ def fly_gps_glitch_auto_test(mavproxy, mav, timeout=120):
         return False
 
     # turn on simulator display of gps and actual position
-    show_gps_and_sim_positions(mavproxy, True)
+    if (use_map):
+        show_gps_and_sim_positions(mavproxy, True)
 
     # load the waypoint count
     global homeloc
@@ -577,7 +591,8 @@ def fly_gps_glitch_auto_test(mavproxy, mav, timeout=120):
 
     # wait until 100m from home
     if not wait_distance(mav, 100, 5, 60):
-        show_gps_and_sim_positions(mavproxy, False)
+        if (use_map):
+            show_gps_and_sim_positions(mavproxy, False)
         return False
 
     # record time and position
@@ -625,7 +640,8 @@ def fly_gps_glitch_auto_test(mavproxy, mav, timeout=120):
         print("Dist from home: %u" % dist_to_home)
 
     # turn off simulator display of gps and actual position
-    show_gps_and_sim_positions(mavproxy, False)
+    if (use_map):
+        show_gps_and_sim_positions(mavproxy, False)
 
     print("GPS Glitch test Auto completed: passed=%s" % ret)
 
@@ -647,7 +663,7 @@ def fly_simple(mavproxy, mav, side=50, timeout=120):
     # switch to stabilize mode
     mavproxy.send('switch 6\n')
     wait_mode(mav, 'STABILIZE')
-    mavproxy.send('rc 3 1430\n')
+    mavproxy.send('rc 3 1500\n')
 
     # fly south 50m
     print("# Flying south %u meters" % side)
@@ -712,7 +728,7 @@ def fly_super_simple(mavproxy, mav, timeout=45):
     # switch to stabilize mode
     mavproxy.send('switch 6\n')
     wait_mode(mav, 'STABILIZE')
-    mavproxy.send('rc 3 1430\n')
+    mavproxy.send('rc 3 1500\n')
 
     # start copter yawing slowly
     mavproxy.send('rc 4 1550\n')
@@ -907,7 +923,7 @@ def setup_rc(mavproxy):
     # zero throttle
     mavproxy.send('rc 3 1000\n')
 
-def fly_ArduCopter(binary, viewerip=None, map=False, valgrind=False):
+def fly_ArduCopter(binary, viewerip=None, use_map=False, valgrind=False, gdb=False):
     '''fly ArduCopter in SIL
 
     you can pass viewerip as an IP address to optionally send fg and
@@ -921,7 +937,7 @@ def fly_ArduCopter(binary, viewerip=None, map=False, valgrind=False):
     mavproxy.expect('Received [0-9]+ parameters')
 
     # setup test parameters
-    mavproxy.send("param load %s/copter_params.parm\n" % testdir)
+    mavproxy.send("param load %s/default_params/copter_params.parm\n" % testdir)
     mavproxy.expect('Loaded [0-9]+ parameters')
     mavproxy.send("param set LOG_REPLAY 1\n")
     mavproxy.send("param set LOG_DISARMED 1\n")
@@ -931,11 +947,11 @@ def fly_ArduCopter(binary, viewerip=None, map=False, valgrind=False):
     util.pexpect_close(mavproxy)
     util.pexpect_close(sil)
 
-    sil = util.start_SIL(binary, model='+', home=home, speedup=speedup_default, valgrind=valgrind)
+    sil = util.start_SIL(binary, model='+', home=home, speedup=speedup_default, valgrind=valgrind, gdb=gdb)
     options = '--sitl=127.0.0.1:5501 --out=127.0.0.1:19550 --quadcopter --streamrate=5'
     if viewerip:
         options += ' --out=%s:14550' % viewerip
-    if map:
+    if use_map:
         options += ' --map'
     mavproxy = util.start_MAVProxy_SIL('ArduCopter', options=options)
     mavproxy.expect('Telemetry log: (\S+)')
@@ -980,8 +996,8 @@ def fly_ArduCopter(binary, viewerip=None, map=False, valgrind=False):
         setup_rc(mavproxy)
         homeloc = mav.location()
 
-        # wait 10sec to allow EKF to settle
-        wait_seconds(mav, 10)
+        # wait for EKF and GPS checks to pass
+        wait_seconds(mav, 30)
 
         # Arm
         print("# Arm motors")
@@ -1089,7 +1105,7 @@ def fly_ArduCopter(binary, viewerip=None, map=False, valgrind=False):
 
         # Fly GPS Glitch Loiter test
         print("# GPS Glitch Loiter Test")
-        if not fly_gps_glitch_loiter_test(mavproxy, mav):
+        if not fly_gps_glitch_loiter_test(mavproxy, mav, use_map):
             failed_test_msg = "fly_gps_glitch_loiter_test failed"
             print(failed_test_msg)
             failed = True
@@ -1103,7 +1119,7 @@ def fly_ArduCopter(binary, viewerip=None, map=False, valgrind=False):
 
         # Fly GPS Glitch test in auto mode
         print("# GPS Glitch Auto Test")
-        if not fly_gps_glitch_auto_test(mavproxy, mav):
+        if not fly_gps_glitch_auto_test(mavproxy, mav, use_map):
             failed_test_msg = "fly_gps_glitch_auto_test failed"
             print(failed_test_msg)
             failed = True
@@ -1258,7 +1274,7 @@ def fly_ArduCopter(binary, viewerip=None, map=False, valgrind=False):
     return True
 
 
-def fly_CopterAVC(binary, viewerip=None, map=False, valgrind=False):
+def fly_CopterAVC(binary, viewerip=None, map=False, valgrind=False, gdb=False):
     '''fly ArduCopter in SIL for AVC2013 mission
     '''
     global homeloc
@@ -1269,7 +1285,7 @@ def fly_CopterAVC(binary, viewerip=None, map=False, valgrind=False):
     mavproxy.expect('Received [0-9]+ parameters')
 
     # setup test parameters
-    mavproxy.send("param load %s/Helicopter.parm\n" % testdir)
+    mavproxy.send("param load %s/default_params/Helicopter.parm\n" % testdir)
     mavproxy.expect('Loaded [0-9]+ parameters')
     mavproxy.send("param set LOG_REPLAY 1\n")
     mavproxy.send("param set LOG_DISARMED 1\n")
@@ -1279,7 +1295,7 @@ def fly_CopterAVC(binary, viewerip=None, map=False, valgrind=False):
     util.pexpect_close(mavproxy)
     util.pexpect_close(sil)
 
-    sil = util.start_SIL(binary, model='heli', home=home, speedup=speedup_default, valgrind=valgrind)
+    sil = util.start_SIL(binary, model='heli', home=home, speedup=speedup_default, valgrind=valgrind, gdb=gdb)
     options = '--sitl=127.0.0.1:5501 --out=127.0.0.1:19550 --streamrate=5'
     if viewerip:
         options += ' --out=%s:14550' % viewerip
@@ -1333,8 +1349,8 @@ def fly_CopterAVC(binary, viewerip=None, map=False, valgrind=False):
         print("Lowering rotor speed")
         mavproxy.send('rc 8 1000\n')
 
-        # wait 20sec to allow EKF to settle
-        wait_seconds(mav, 20)
+        # wait for EKF and GPS checks to pass
+        wait_seconds(mav, 30)
 
         # Arm
         print("# Arm motors")

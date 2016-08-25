@@ -65,11 +65,18 @@ public:
     AP_HAL::Semaphore *get_semaphore() { return nullptr; }
 
     /* See AP_HAL::Device::register_periodic_callback() */
-    AP_HAL::Device::PeriodicHandle *register_periodic_callback(
-        uint32_t period_usec, AP_HAL::MemberProc) override
+    AP_HAL::Device::PeriodicHandle register_periodic_callback(
+        uint32_t period_usec, AP_HAL::Device::PeriodicCb) override
     {
         return nullptr;
-    };
+    }
+
+    /* See Device::adjust_periodic_callback() */
+    virtual bool adjust_periodic_callback(
+        AP_HAL::Device::PeriodicHandle h, uint32_t period_usec) override
+    {
+        return true;
+    }
 
     /* See AP_HAL::Device::get_fd() */
     int get_fd() { return -1; }
@@ -82,7 +89,7 @@ public:
     /* AP_HAL::I2CDeviceManager implementation */
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> get_device(uint8_t bus, uint8_t address)
     {
-        return AP_HAL::OwnPtr<AP_HAL::I2CDevice>(new I2CDevice());
+        return nullptr;
     }
 };
 

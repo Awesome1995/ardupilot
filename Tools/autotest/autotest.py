@@ -81,11 +81,16 @@ def build_devrelease():
     return True
 
 def build_examples():
-    '''run the build_examples.sh script'''
-    print("Running build_examples.sh")
-    if util.run_cmd(util.reltopdir('Tools/scripts/build_examples.sh'), dir=util.reltopdir('.')) != 0:
-        print("Failed build_examples.sh")
-        return False
+    '''build examples'''
+    for target in 'px4-v2', 'navio':
+        print("Running build.examples for %s" % target)
+        try:
+            util.build_examples(target)
+        except Exception as e:
+            print("Failed build_examples on board=%s" % target)
+            print(str(e))
+            return False
+
     return True
 
 def build_parameters():
@@ -139,6 +144,7 @@ parser.add_option("--map", action='store_true', default=False, help='show map')
 parser.add_option("--experimental", default=False, action='store_true', help='enable experimental tests')
 parser.add_option("--timeout", default=3000, type='int', help='maximum runtime in seconds')
 parser.add_option("--valgrind", default=False, action='store_true', help='run ArduPilot binaries under valgrind')
+parser.add_option("--gdb", default=False, action='store_true', help='run ArduPilot binaries under gdb')
 parser.add_option("--debug", default=False, action='store_true', help='make built binaries debug binaries')
 parser.add_option("-j", default=None, type='int', help='build CPUs')
 
@@ -260,19 +266,19 @@ def run_step(step):
         return get_default_params('APMrover2', binary)
 
     if step == 'fly.ArduCopter':
-        return arducopter.fly_ArduCopter(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind)
+        return arducopter.fly_ArduCopter(binary, viewerip=opts.viewerip, use_map=opts.map, valgrind=opts.valgrind, gdb=opts.gdb)
 
     if step == 'fly.CopterAVC':
-        return arducopter.fly_CopterAVC(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind)
+        return arducopter.fly_CopterAVC(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind, gdb=opts.gdb)
 
     if step == 'fly.ArduPlane':
-        return arduplane.fly_ArduPlane(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind)
+        return arduplane.fly_ArduPlane(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind, gdb=opts.gdb)
 
     if step == 'fly.QuadPlane':
-        return quadplane.fly_QuadPlane(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind)
+        return quadplane.fly_QuadPlane(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind, gdb=opts.gdb)
 
     if step == 'drive.APMrover2':
-        return apmrover2.drive_APMrover2(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind)
+        return apmrover2.drive_APMrover2(binary, viewerip=opts.viewerip, map=opts.map, valgrind=opts.valgrind, gdb=opts.gdb)
 
     if step == 'build.All':
         return build_all()
@@ -365,14 +371,14 @@ def write_fullresults():
     results.addfile('ArduPlane build log', 'ArduPlane.txt')
     results.addfile('ArduPlane code size', 'ArduPlane.sizes.txt')
     results.addfile('ArduPlane stack sizes', 'ArduPlane.framesizes.txt')
-    results.addfile('ArduPlane defaults', 'ArduPlane-defaults.parm')
+    results.addfile('ArduPlane defaults', 'default_params/ArduPlane-defaults.parm')
     results.addglob("ArduPlane log", 'ArduPlane-*.BIN')
     results.addglob("ArduPlane core", 'ArduPlane.core')
     results.addglob("ArduPlane ELF", 'ArduPlane.elf')
     results.addfile('ArduCopter build log', 'ArduCopter.txt')
     results.addfile('ArduCopter code size', 'ArduCopter.sizes.txt')
     results.addfile('ArduCopter stack sizes', 'ArduCopter.framesizes.txt')
-    results.addfile('ArduCopter defaults', 'ArduCopter-defaults.parm')
+    results.addfile('ArduCopter defaults', 'default_params/ArduCopter-defaults.parm')
     results.addglob("ArduCopter log", 'ArduCopter-*.BIN')
     results.addglob("ArduCopter core", 'ArduCopter.core')
     results.addglob("ArduCopter elf", 'ArduCopter.elf')
@@ -381,7 +387,7 @@ def write_fullresults():
     results.addfile('APMrover2 build log', 'APMrover2.txt')
     results.addfile('APMrover2 code size', 'APMrover2.sizes.txt')
     results.addfile('APMrover2 stack sizes', 'APMrover2.framesizes.txt')
-    results.addfile('APMrover2 defaults', 'APMrover2-defaults.parm')
+    results.addfile('APMrover2 defaults', 'default_params/APMrover2-defaults.parm')
     results.addglob("APMrover2 log", 'APMrover2-*.BIN')
     results.addglob("APMrover2 core", 'APMrover2.core')
     results.addglob("APMrover2 ELF", 'APMrover2.elf')
@@ -477,9 +483,15 @@ if len(args) > 0:
     # allow a wildcard list of steps
     matched = []
     for a in args:
+        arg_matched = False
         for s in steps:
             if fnmatch.fnmatch(s.lower(), a.lower()):
                 matched.append(s)
+                arg_matched = True
+        if not arg_matched:
+            print("No steps matched argument ({})".format(a))
+            sys.exit(1)
+
     steps = matched
 
 try:
