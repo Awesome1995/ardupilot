@@ -60,14 +60,13 @@ bool AP_IRLock_SITL::update()
     }
     // my additions:S
     irlock_packet pkt;
-    /*
-      we re-send the servo packet every 0.1 seconds until we get a
-      reply. This allows us to cope with some packet loss to the FDM
-     */
-    size_t s = sock.recv(&pkt, sizeof(pkt), 5);
+    size_t s = sock.recv(&pkt, sizeof(pkt), 0);
     _num_targets = pkt.num_targets;
-    for (uint8_t i=0; i<_num_targets; ++i) {
+    _num_targets = 1;
+    for (uint16_t i=0; i<_num_targets; ++i) {
+      // fprintf(stderr, "sitl %d %d\n", i, _num_targets);
       if (s == sizeof(pkt) && pkt.timestamp >_last_timestamp) {
+          // fprintf(stderr, "     posx %f posy %f sizex %f sizey %f\n", pkt.pos_x, pkt.pos_y, pkt.size_x, pkt.size_y);
           _target_info[i].timestamp = pkt.timestamp;
           _target_info[i].pos_x = pkt.pos_x;
           _target_info[i].pos_y = pkt.pos_y;
