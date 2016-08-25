@@ -61,7 +61,9 @@ bool AP_IRLock_SITL::update()
     // my additions:S
     irlock_packet pkt;
     size_t s = sock.recv(&pkt, sizeof(pkt), 0);
-    _num_targets = pkt.num_targets;
+    // for some reason, pkt.num_targets occasionally gets a bad number
+    // _num_targets = pkt.num_targets;
+    // hardcode to 1 for now
     _num_targets = 1;
     for (uint16_t i=0; i<_num_targets; ++i) {
       // fprintf(stderr, "sitl %d %d\n", i, _num_targets);
