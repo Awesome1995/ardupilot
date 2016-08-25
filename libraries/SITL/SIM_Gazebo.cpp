@@ -123,12 +123,14 @@ void Gazebo::recv_fdm(const struct sitl_input &input)
  */
 void Gazebo::update(const struct sitl_input &input)
 {
+    // fprintf(stderr, "update\n");
     send_servos(input);
     recv_fdm(input);
     update_position();
 
     // update magnetic field
     update_mag_field_bf();
+    // fprintf(stderr, "update done\n");
 }
 
 } // namespace SITL
