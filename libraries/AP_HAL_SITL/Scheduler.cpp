@@ -42,7 +42,6 @@ void Scheduler::delay_microseconds(uint16_t usec)
 {
     uint64_t start = AP_HAL::micros64();
     uint64_t dtime;
-    // fprintf(stderr, "delay_microseconds %ld < %d\n", (AP_HAL::micros64() - start), usec);
     while ((dtime=(AP_HAL::micros64() - start) < usec)) {
         if (_stopped_clock_usec) {
             _sitlState->wait_clock(start+usec);
@@ -54,7 +53,6 @@ void Scheduler::delay_microseconds(uint16_t usec)
 
 void Scheduler::delay(uint16_t ms)
 {
-    // fprintf(stderr, "delay %d > 0\n", ms);
     while (ms > 0) {
         delay_microseconds(1000);
         ms--;

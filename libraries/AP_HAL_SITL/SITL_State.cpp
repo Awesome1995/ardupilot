@@ -190,7 +190,6 @@ void SITL_State::_fdm_input_step(void)
 
 void SITL_State::wait_clock(uint64_t wait_time_usec)
 {
-    // fprintf(stderr, "wait_clock %ld < %ld\n", AP_HAL::micros64(), wait_time_usec);
     while (AP_HAL::micros64() < wait_time_usec) {
         _fdm_input_step();
     }
