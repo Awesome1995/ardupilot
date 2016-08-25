@@ -13,16 +13,14 @@ const AP_Param::GroupInfo AC_PrecLand::var_info[] = {
     // @Description: Precision Land enabled/disabled and behaviour
     // @Values: 0:Disabled, 1:Enabled Always Land, 2:Enabled Strict
     // @User: Advanced
-//    AP_GROUPINFO("ENABLED", 0, AC_PrecLand, _enabled, 0),
-    AP_GROUPINFO("ENABLED", 0, AC_PrecLand, _enabled, 1),
+    AP_GROUPINFO("ENABLED", 0, AC_PrecLand, _enabled, 0),
 
     // @Param: TYPE
     // @DisplayName: Precision Land Type
     // @Description: Precision Land Type
     // @Values: 0:None, 1:CompanionComputer, 2:IRLock
     // @User: Advanced
-//    AP_GROUPINFO("TYPE",    1, AC_PrecLand, _type, 0),
-    AP_GROUPINFO("TYPE",    1, AC_PrecLand, _type, 2),
+    AP_GROUPINFO("TYPE",    1, AC_PrecLand, _type, 0),
 
     AP_GROUPEND
 };
