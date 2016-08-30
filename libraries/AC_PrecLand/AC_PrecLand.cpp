@@ -87,14 +87,14 @@ void AC_PrecLand::update(float alt_above_terrain_cm)
     if (_backend != NULL && _enabled) {
         // read from sensor
         _backend->update();
-        
+
         if (_backend->have_los_meas() && _backend->los_meas_time_ms() != _last_backend_los_meas_ms) {
             // we have a new, unique los measurement
             _last_backend_los_meas_ms = _backend->los_meas_time_ms();
 
             Vector3f target_vec_unit_body;
             _backend->get_los_body(target_vec_unit_body);
-            
+
             calc_angles_and_pos(target_vec_unit_body, alt_above_terrain_cm);
         }
     }
